@@ -1,0 +1,15 @@
+[Unit]
+Description=copyparty autodeploy — publica cada push do fork
+Documentation=file:///usr/local/lib/copyparty/README.md
+After=network-online.target copyparty.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/copyparty-autodeploy
+TimeoutStartSec=900
+
+# o build e CPU-pesado e isto aqui e um notebook: que ele ceda a vez
+Nice=10
+IOSchedulingClass=idle
+CPUSchedulingPolicy=batch

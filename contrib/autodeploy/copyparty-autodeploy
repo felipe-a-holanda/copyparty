@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# copyparty-autodeploy — observa o fork no github e publica cada push em producao.
+#
+# o estado do deploy NAO vive num arquivo de controle: /usr/local/bin/copyparty-sfx.py
+# e um symlink para .../copyparty-sfx-<sha40>.py, entao o proprio link diz o que esta
+# no ar. nada para dessincronizar.
+#
+# roda como root (timer do systemd), mas o BUILD roda como usuario comum.
+
+set -Eeuo pipefail
+
+FORK_URL=${FORK_URL:-https://github.com/felipe-a-holanda/copyparty.git}
+BRANCH=${BRANCH:-hovudstraum}
+SRC=${SRC:-/srv/apps/copyparty/src}
+LIB=${LIB:-/usr/local/lib/copyparty}
+BIN=${BIN:-/usr/local/bin/copyparty-sfx.py}
+UNIT=${UNIT:-copyparty}
+BUILD_USER=${BUILD_USER:-felipe}
+BUILD_ARGS=${BUILD_ARGS:-fast dl-wd}
+HEALTH_URL=${HEALTH_URL:-http://127.0.0.1:3923/}
+HEALTH_TIMEOUT=${HEALTH_TIMEOUT:-45}
+KEEP=${KEEP:-5}
+LOCK=${LOCK:-/run/copyparty-autodeploy.lock}
+
+log() { printf '%s  %s\n' "$(date -Is)" "$*"; }
+die() { log "ERRO: $*"; exit 1; }
+
+[ "$(id -u)" = 0 ] || die "precisa rodar como root"
+
+# nunca dois deploys ao mesmo tempo (timer + execucao manual)
+exec 9>"$LOCK"
+flock -n 9 || { log "outro deploy em andamento; saindo"; exit 0; }
+
+build_home=$(getent passwd "$BUILD_USER" | cut -d: -f6)
+[ -n "$build_home" ] || die "usuario de build '$BUILD_USER' nao existe"
+
+as_builder() {
+	runuser -u "$BUILD_USER" -- \
+		env HOME="$build_home" PATH="/usr/local/bin:/usr/bin:/bin" \
+		    GIT_TERMINAL_PROMPT=0 "$@"
+}
+
+# ---------------------------------------------------------------- ha novidade?
+
+# ls-remote nao baixa nada; e a parte barata do laco, e a unica que roda sempre
+remote_sha=$(git ls-remote --exit-code "$FORK_URL" "refs/heads/$BRANCH" 2>/dev/null \
+	| awk '{print $1; exit}') || {
+	log "fork inacessivel (offline?); tento no proximo ciclo"
+	exit 0
+}
+
+cur_path=$(readlink -f "$BIN" 2>/dev/null || true)
+cur_sha=
+case "$cur_path" in
+	*/copyparty-sfx-*.py) cur_sha=${cur_path##*/copyparty-sfx-}; cur_sha=${cur_sha%.py} ;;
+esac
+
+# caso comum: nada mudou. sai calado para nao encher o journal a cada ciclo
+[ "$cur_sha" = "$remote_sha" ] && exit 0
+
+log "novo commit em $BRANCH: ${remote_sha:0:8} (no ar: ${cur_sha:0:8}${cur_sha:+ }${cur_sha:-nenhum sha conhecido})"
+
+# ---------------------------------------------------------------- fonte
+
+if [ ! -d "$SRC/.git" ]; then
+	log "clonando $FORK_URL em $SRC"
+	install -d -m755 -o "$BUILD_USER" -g "$BUILD_USER" "$SRC"
+	as_builder git clone --branch "$BRANCH" "$FORK_URL" "$SRC"
+fi
+
+# o fork e a fonte da verdade, custe o que custar ao que estiver no clone
+as_builder git -C "$SRC" remote set-url origin "$FORK_URL"
+as_builder git -C "$SRC" fetch --tags --prune --force origin \
+	"+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
+as_builder git -C "$SRC" reset --hard "$remote_sha"
+
+built_sha=$(as_builder git -C "$SRC" rev-parse HEAD)
+[ "$built_sha" = "$remote_sha" ] || die "clone ficou em $built_sha, esperava $remote_sha"
+
+# o deployer versionado mudou? ele nao se auto-instala; avisa e segue
+ref="$SRC/contrib/autodeploy/copyparty-autodeploy"
+[ -f "$ref" ] && ! cmp -s "$0" "$ref" &&
+	log "AVISO: contrib/autodeploy mudou no fork; rode install.sh para atualizar o deployer"
+
+# ---------------------------------------------------------------- build
+
+log "construindo sfx ($BUILD_ARGS)"
+t0=$SECONDS
+
+# make-sfx.sh e falante demais para o journal: guarda tudo, mostra so se quebrar
+buildlog=$(mktemp /tmp/copyparty-build.XXXXXX.log)
+trap 'rm -f "$buildlog"' EXIT
+if ! as_builder bash -c 'cd "$1" && shift && exec ./scripts/make-sfx.sh "$@"' \
+	_ "$SRC" $BUILD_ARGS >"$buildlog" 2>&1
+then
+	log "build FALHOU apos $((SECONDS - t0))s; ultimas 40 linhas:"
+	tail -40 "$buildlog" | sed 's/^/    | /'
+	die "build de ${remote_sha:0:8} abortado; nada foi publicado"
+fi
+log "build levou $((SECONDS - t0))s"
+
+out="$SRC/dist/copyparty-sfx.py"
+[ -s "$out" ] || die "build nao produziu $out"
+stamp=$(grep -a -m1 -oE '^ *VER *= *"[^"]*"' "$out" | sed -E 's/.*"(.*)"/\1/' || true)
+log "carimbo do binario: ${stamp:-<ilegivel>}"
+
+# ---------------------------------------------------------------- publica
+
+install -d -m755 "$LIB"
+rel="$LIB/copyparty-sfx-$remote_sha.py"
+install -m755 -o root -g root "$out" "$rel"
+
+# troca do symlink e atomica: mv -T sobre o link, nunca um instante sem alvo
+ln -sfn "$rel" "$BIN.new"
+mv -Tf "$BIN.new" "$BIN"
+log "publicado $rel"
+
+# se o restart falhar, o health check adiante e quem decide reverter
+systemctl restart "$UNIT" || log "systemctl restart falhou"
+
+# ---------------------------------------------------------------- health
+
+ok=0
+for _ in $(seq "$HEALTH_TIMEOUT"); do
+	sleep 1
+	systemctl is-active --quiet "$UNIT" || continue
+	code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$HEALTH_URL" || true)
+	[ -n "$code" ] && [ "$code" != 000 ] && { ok=1; break; }
+done
+
+if [ "$ok" != 1 ]; then
+	log "health check falhou apos ${HEALTH_TIMEOUT}s"
+	if [ -n "$cur_path" ] && [ -f "$cur_path" ]; then
+		ln -sfn "$cur_path" "$BIN.new"
+		mv -Tf "$BIN.new" "$BIN"
+		systemctl restart "$UNIT" || log "restart do rollback falhou"
+		log "REVERTIDO para $cur_path"
+	else
+		log "sem versao anterior conhecida; o servico segue no binario novo e quebrado"
+	fi
+	die "deploy de ${remote_sha:0:8} abortado"
+fi
+
+log "OK: ${remote_sha:0:8} no ar e respondendo ($HEALTH_URL)"
+
+# ---------------------------------------------------------------- poda
+
+prune() {
+	local keep_path f
+	keep_path=$(readlink -f "$BIN")
+	find "$LIB" -maxdepth 1 -name 'copyparty-sfx-[0-9a-f]*.py' -printf '%T@ %p\n' \
+		| sort -rn | tail -n "+$((KEEP + 1))" | cut -d' ' -f2- \
+		| while IFS= read -r f; do
+			[ "$f" = "$keep_path" ] && continue
+			rm -f -- "$f" && log "podado $f"
+		done
+}
+prune || log "poda falhou (inofensivo)"
+
+exit 0

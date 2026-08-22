@@ -1,0 +1,12 @@
+[Unit]
+Description=verifica o fork do copyparty a cada 2 minutos
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+AccuracySec=30s
+RandomizedDelaySec=20s
+Unit=copyparty-autodeploy.service
+
+[Install]
+WantedBy=timers.target
