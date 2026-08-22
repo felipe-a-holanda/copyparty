@@ -1,7 +1,11 @@
 # autodeploy
 
 Publica em produção, sozinho, cada push feito no fork
-`https://github.com/felipe-a-holanda/copyparty` (branch `hovudstraum`).
+`https://github.com/felipe-a-holanda/copyparty` (branch `main`).
+
+`main` é o branch de trabalho deste fork. O `hovudstraum` — nynorsk para
+"corrente principal", o `main` do upstream — segue existindo como espelho do
+9001/copyparty, para rebase.
 
 ## por que polling, e não webhook
 
@@ -24,7 +28,7 @@ um retarget de symlink.
 
 ## o ciclo
 
-1. `git ls-remote` no fork → SHA de `hovudstraum`. Igual ao que está no ar: sai
+1. `git ls-remote` no fork → SHA de `main`. Igual ao que está no ar: sai
    calado (o caso comum, a cada 2 min).
 2. Clone dedicado em `/srv/apps/copyparty/src` — **nunca** o checkout de trabalho:
    `fetch` + `reset --hard <sha>`. O que está no fork é o que vai ao ar, sem

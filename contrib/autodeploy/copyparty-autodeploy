@@ -10,7 +10,7 @@
 set -Eeuo pipefail
 
 FORK_URL=${FORK_URL:-https://github.com/felipe-a-holanda/copyparty.git}
-BRANCH=${BRANCH:-hovudstraum}
+BRANCH=${BRANCH:-main}
 SRC=${SRC:-/srv/apps/copyparty/src}
 LIB=${LIB:-/usr/local/lib/copyparty}
 BIN=${BIN:-/usr/local/bin/copyparty-sfx.py}
