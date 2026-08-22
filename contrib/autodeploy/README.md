@@ -80,5 +80,23 @@ Todas as variáveis do topo de `copyparty-autodeploy` podem ser sobrescritas por
 ambiente na unit (`systemctl edit copyparty-autodeploy.service`), entre elas
 `BRANCH`, `BUILD_ARGS`, `HEALTH_TIMEOUT` e `KEEP`.
 
-O deployer **não se auto-atualiza**: mudou algo em `contrib/autodeploy/`, ele
-avisa no journal e você roda `sudo ./contrib/autodeploy/install.sh` de novo.
+## sudo
+
+Nenhum, no dia a dia. O timer já roda como root e faz sozinho as três coisas que
+exigem privilégio: escrever em `/usr/local/*`, trocar o symlink e reiniciar a
+unit. Você dá `git push` de qualquer máquina — o deployer pergunta o SHA ao
+GitHub, não a este checkout, então de onde veio o push é irrelevante.
+
+Mexer no próprio deployer também dispensa sudo: ele se reinstala a partir do
+fork (`selfupdate`, logo após o fetch), rodando o `install.sh` do próprio commit.
+Não há re-exec — a versão nova assume no ciclo seguinte, o que custa 2 min de
+latência e elimina qualquer risco de loop. Antes de trocar qualquer coisa ele
+valida `bash -n` no script e no instalador e guarda o anterior em
+`/usr/local/sbin/copyparty-autodeploy.prev`; um script quebrado vindo do fork é
+recusado, e o deployer que está no ar continua no ar.
+
+**O preço, dito claramente:** com o auto-update ligado, o que chegar em
+`contrib/autodeploy/` no branch observado passa a executar como **root** nesta
+máquina. Antes disso, código vindo do fork só alcançava o usuário `felipe` (o
+build). Quem tem push no fork tem root aqui — o que torna a proteção da sua conta
+do GitHub parte da segurança desta máquina.

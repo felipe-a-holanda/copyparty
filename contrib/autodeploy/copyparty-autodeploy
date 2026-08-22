@@ -58,7 +58,9 @@ esac
 # caso comum: nada mudou. sai calado para nao encher o journal a cada ciclo
 [ "$cur_sha" = "$remote_sha" ] && exit 0
 
-log "novo commit em $BRANCH: ${remote_sha:0:8} (no ar: ${cur_sha:0:8}${cur_sha:+ }${cur_sha:-nenhum sha conhecido})"
+prev_desc="nenhum sha conhecido"
+[ -n "$cur_sha" ] && prev_desc=${cur_sha:0:8}
+log "novo commit em $BRANCH: ${remote_sha:0:8} (no ar: $prev_desc)"
 
 # ---------------------------------------------------------------- fonte
 
@@ -77,10 +79,44 @@ as_builder git -C "$SRC" reset --hard "$remote_sha"
 built_sha=$(as_builder git -C "$SRC" rev-parse HEAD)
 [ "$built_sha" = "$remote_sha" ] || die "clone ficou em $built_sha, esperava $remote_sha"
 
-# o deployer versionado mudou? ele nao se auto-instala; avisa e segue
-ref="$SRC/contrib/autodeploy/copyparty-autodeploy"
-[ -f "$ref" ] && ! cmp -s "$0" "$ref" &&
-	log "AVISO: contrib/autodeploy mudou no fork; rode install.sh para atualizar o deployer"
+# ---------------------------------------------------------------- auto-update
+#
+# o deployer se reinstala a partir do fork, para que mexer NELE tambem dispense
+# sudo. sem re-exec de proposito: o ciclo corrente termina com o codigo que ja
+# esta na memoria (conhecido, funcionando) e a versao nova assume no proximo.
+# isso troca 2 min de latencia por nao ter risco de loop de re-exec.
+#
+# roda ANTES do build: assim, se o deploy do codigo falhar, o deployer novo ja
+# ficou instalado para a proxima tentativa.
+
+selfupdate() {
+	local ref="$SRC/contrib/autodeploy/copyparty-autodeploy"
+	local inst="$SRC/contrib/autodeploy/install.sh"
+	local me=/usr/local/sbin/copyparty-autodeploy
+	local ilog
+
+	[ -f "$ref" ] && [ -f "$inst" ] || return 0
+	cmp -s "$ref" "$me" && return 0
+
+	log "o deployer mudou no fork; reinstalando"
+
+	# um erro de sintaxe vindo do fork nao pode virar um deployer morto:
+	# sem isto, consertar exigiria justamente o sudo que estamos eliminando
+	bash -n "$ref"  || { log "ERRO: copyparty-autodeploy novo nao passa em bash -n; mantido o atual"; return 0; }
+	bash -n "$inst" || { log "ERRO: install.sh novo nao passa em bash -n; mantido o atual"; return 0; }
+
+	cp -p "$me" "$me.prev"
+
+	ilog=$(mktemp /tmp/copyparty-selfupdate.XXXXXX.log)
+	if bash "$inst" >"$ilog" 2>&1; then
+		log "deployer atualizado; entra em vigor no proximo ciclo (anterior em $me.prev)"
+	else
+		log "ERRO: install.sh novo falhou; o deployer atual segue no ar:"
+		tail -20 "$ilog" | sed 's/^/    | /'
+	fi
+	rm -f "$ilog"
+}
+selfupdate || log "auto-update falhou (inofensivo); o deployer atual segue no ar"
 
 # ---------------------------------------------------------------- build
 
