@@ -36,6 +36,11 @@
 	--veil: rgba(20, 20, 30, .28);
 	--sheet-sh: 0 -12px 40px rgba(20, 20, 30, .16);
 
+	/* the sticky header's measured height. nu.js overwrites this from a
+	   ResizeObserver on #nu_top; the fallback has to be close, or anything
+	   docked under the header (the tree) starts life behind the blur. */
+	--head-h: 8.5em;
+
 	/* the design is light-first; these are the type stacks the repo uses */
 	--font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
 	--mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -528,6 +533,51 @@ a {
 		margin-right: auto;
 	}
 
+	#nu_sheet {
+		left: 50%;
+		transform: translate(-50%, 110%);
+		width: 460px;
+		border-radius: 22px;
+		bottom: 40px;
+	}
+
+	#nu_sheet.on {
+		transform: translate(-50%, 0);
+	}
+}
+
+/* the wide band, 64em up: the header and the footer span the window (no cap
+   at all up here), the content column caps at 100em and sits flush left, and
+   the tree docks outside that cap. #nu_shell is an unstyled block below this
+   query, so the middle band's centering of #nu_main is untouched. */
+@media (min-width: 64em) {
+	#nu_shell {
+		display: grid;
+		grid-template-columns: minmax(0, 100em);
+		justify-content: start;
+	}
+
+	/* the dock's column is opt-in, never the default: the attribute is
+	   written when the dock is actually rendered. a 16em track declared
+	   unconditionally would leave a permanent empty gutter on every
+	   --ui-notree deployment, and on every window that widens before the
+	   first ?tree= answers -- the dock is allowed to be absent, the hole
+	   is not. */
+	#nu_shell[data-tree="1"] {
+		grid-template-columns: 16em minmax(0, 100em);
+	}
+
+	#nu_tree {
+		position: sticky;
+		top: var(--head-h);
+		/* a stretched grid item is exactly as tall as its row and has no
+		   travel to stick through, same trap as the header on <body> */
+		align-self: start;
+		max-height: calc(100vh - var(--head-h));
+		overflow-y: auto;
+	}
+
+	/* the sort sheet is a modal, and it is centered in both non-phone bands */
 	#nu_sheet {
 		left: 50%;
 		transform: translate(-50%, 110%);

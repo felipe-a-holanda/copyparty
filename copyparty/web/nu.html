@@ -39,9 +39,17 @@
 		</div>
 	</header>
 
-	<main id="nu_main">
-		<div id="nu_list" aria-live="polite"></div>
-	</main>
+	<!-- the wide-band shell: the tree dock and the list, side by side.
+	     #nu_top and #nu_foot stay direct children of <body> on purpose --
+	     making <body> the grid would give the sticky header a grid area
+	     exactly its own height, and no travel to stick through. -->
+	<div id="nu_shell">
+		<nav id="nu_tree" hidden></nav>
+
+		<main id="nu_main">
+			<div id="nu_list" aria-live="polite"></div>
+		</main>
+	</div>
 
 	<div id="nu_veil" hidden></div>
 
