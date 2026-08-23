@@ -1027,9 +1027,69 @@ function tree_boot() {
 			pick_sort(b.getAttribute("data-k"));
 	};
 
+	// one keydown listener for the whole UI, extended in place rather than
+	// joined by a second one: two listeners on document would each have to
+	// re-derive the typing guard, and the day they disagree the bug is
+	// invisible.
 	document.addEventListener("keydown", function (e) {
-		if (e.key == "Escape" && ST.sheet)
-			sheet(false);
+		// the typing guard comes FIRST, and is deliberately wider than the
+		// one it is modeled on: the classic UI reads the active element the
+		// same way (browser.js:6237-6238) but then guards on `input` alone
+		// (:6306-6307). a textarea eats arrow keys exactly like #nu_q does,
+		// a <select> eats them to change its value, and a contenteditable
+		// eats them to move a caret -- the extra branches cost nothing and
+		// `isContentEditable` appears nowhere else under web/ because
+		// nothing else here has had to care yet.
+		var ae = document.activeElement,
+			aet = ae ? (ae.nodeName || "").toLowerCase() : "";
+
+		if (aet == "input" || aet == "textarea" || aet == "select" ||
+			(ae && ae.isContentEditable))
+			return;
+
+		var k = e.key;
+
+		if (k == "Escape") {
+			if (ST.sheet)
+				sheet(false);
+
+			return;
+		}
+
+		// never steal a browser shortcut; shift is left alone because
+		// shift+arrow is range selection, and selection is 0001's card 5
+		if (e.ctrlKey || e.altKey || e.metaKey)
+			return;
+
+		// focus follows navigation and NOTHING else -- no selection state
+		// is created here. the rows are already <a href> elements, so they
+		// are focusable, Enter is the browser's own activation and needs no
+		// handler, and .focus() does the scrolling.
+		var rows = ebi("nu_list").querySelectorAll(".nu_row");
+		if (!rows.length)
+			return;
+
+		var cur = -1;
+		for (var a = 0; a < rows.length; a++)
+			if (rows[a] === ae) {
+				cur = a;
+				break;
+			}
+
+		var nxt;
+		if (k == "ArrowDown")
+			nxt = cur < 0 ? 0 : Math.min(cur + 1, rows.length - 1);
+		else if (k == "ArrowUp")
+			nxt = cur < 0 ? rows.length - 1 : Math.max(cur - 1, 0);
+		else if (k == "Home")
+			nxt = 0;
+		else if (k == "End")
+			nxt = rows.length - 1;
+		else
+			return;
+
+		e.preventDefault();
+		rows[nxt].focus();
 	});
 
 	// --ui-notree has meant "hide navpane in the UI" since __main__.py's
