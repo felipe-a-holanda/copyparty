@@ -313,6 +313,18 @@ a {
 	padding-bottom: calc(28px + env(safe-area-inset-bottom));
 }
 
+/* the column header, hidden everywhere but the wide band -- the narrow and
+   the middle band keep the status line's sort button as their door.
+
+   this is `display: none` and NOT a `hidden` attribute: `hidden` is a UA
+   display:none that the band rule then has to out-specify, which works from
+   an id today and breaks in silence the day the rule moves to a class. one
+   mechanism, in one file. (#nu_tree keeps its `hidden` -- js owns that one,
+   not a band.) */
+#nu_head {
+	display: none;
+}
+
 .nu_row {
 	display: flex;
 	align-items: center;
@@ -405,9 +417,16 @@ a {
 /* type sheds first, below 80em: it is the one field with a second
    representation already on the row -- the type chip, which stays at every
    width. it is also the last child of .nu_sub, so hiding it orphans
-   nothing; there is no cell after it to inherit the separator. */
+   nothing; there is no cell after it to inherit the separator.
+
+   the header's Type button sheds in the same breath, and not for looks:
+   `ty` is not a grid line below 80em, and grid-column naming a line that
+   does not exist resolves against the implicit grid -- one extra column,
+   and every header cell after it sits a track off its own column. a
+   display:none element is not a grid item at all, so shedding is the fix. */
 @media (max-width: 79.99em) {
-	.nu_c_ty {
+	.nu_c_ty,
+	.nu_h_ty {
 		display: none;
 	}
 }
@@ -676,6 +695,61 @@ a {
 	.nu_row {
 		display: grid;
 		grid-template-columns: var(--nu-cols);
+	}
+
+	/* ---- the column header ----
+
+	   every row is its own grid, so nothing lines up by being in the same
+	   grid -- it lines up by declaring the same geometry. that is three
+	   things, not one: the tracks (--nu-cols), the gap, and the inline
+	   padding. a header that copies only the tracks starts 16px off at the
+	   left edge and drifts a further 14px per column.
+	   --row-pad is read with .nu_row's own fallback, so the density
+	   opt-out moves the header and the rows together. */
+	#nu_head {
+		display: grid;
+		grid-template-columns: var(--nu-cols);
+		gap: 14px;
+		padding: var(--row-pad, 14px 16px);
+		border-bottom: 1px solid var(--line);
+	}
+
+	/* 12px / --fg2 is what .nu_sub hands the cells below: the header is
+	   the same type as the column it labels, not a heavier one. */
+	.nu_hcol {
+		border: 0;
+		background: none;
+		padding: 0;
+		font: 500 12px var(--font);
+		color: var(--fg2);
+		text-align: left;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		cursor: pointer;
+	}
+
+	.nu_hcol:hover {
+		color: var(--fg);
+	}
+
+	/* placed by name, exactly like the row's cells -- the header has no
+	   chip and no chevron, and SORTS' `n` gets no button at all, so its
+	   dom order is free and only the names decide where a label sits. */
+	.nu_h_name {
+		grid-column: name;
+	}
+
+	.nu_h_sz {
+		grid-column: sz;
+	}
+
+	.nu_h_ty {
+		grid-column: ty;
+	}
+
+	.nu_h_dt {
+		grid-column: dt;
 	}
 
 	/* two levels, not one. .nu_meat wraps the name and the meta line, and

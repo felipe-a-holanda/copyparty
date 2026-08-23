@@ -47,6 +47,12 @@
 		<nav id="nu_tree" hidden></nav>
 
 		<main id="nu_main">
+			<!-- the column header is a sibling of #nu_list, never a child:
+			     #nu_list is aria-live="polite", so a header living inside
+			     it would be re-announced on every sort and on every
+			     keystroke in the filter. it carries no `hidden` attribute
+			     either -- the bands own its visibility, in nu.css. -->
+			<div id="nu_head"></div>
 			<div id="nu_list" aria-live="polite"></div>
 		</main>
 	</div>
