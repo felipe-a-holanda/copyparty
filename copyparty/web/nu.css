@@ -386,6 +386,32 @@ a {
 	white-space: nowrap;
 }
 
+/* the meta line's separators live here now, not in the string js used to
+   concatenate -- a column cannot be a substring. render_list never emits a
+   cell with nothing in it, so this needs no :empty guard: an unindexed
+   folder simply has no size cell, and its date is the first child and gets
+   no separator in front of it. */
+.nu_sub > * + *::before {
+	content: " · ";
+}
+
+/* a dual-form cell carries both texts and css picks, because a row may not
+   be re-rendered to reformat itself when the window changes width. the
+   wide form is dead weight until the wide band asks for it. */
+.nu_w {
+	display: none;
+}
+
+/* type sheds first, below 80em: it is the one field with a second
+   representation already on the row -- the type chip, which stays at every
+   width. it is also the last child of .nu_sub, so hiding it orphans
+   nothing; there is no cell after it to inherit the separator. */
+@media (max-width: 79.99em) {
+	.nu_c_ty {
+		display: none;
+	}
+}
+
 .nu_go {
 	flex: 0 0 auto;
 	font-size: 18px;
