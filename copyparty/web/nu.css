@@ -514,8 +514,12 @@ a {
 	white-space: nowrap;
 }
 
-/* the design is a phone design; keep it readable when it is not a phone */
-@media (min-width: 700px) {
+/* the middle band, 44em-64em: tablets and half-screen windows. the phone
+   design (no query at all) owns everything below; the wide layout owns
+   everything from 64em up, so this rule needs an upper edge -- an unbounded
+   760px cap would survive into a layout meant to be 100em wide.
+   bands are em, like the rest of web/ (ui.css:302, md.css:274). */
+@media (min-width: 44em) and (max-width: 63.99em) {
 	#nu_top,
 	#nu_main,
 	#nu_foot {
