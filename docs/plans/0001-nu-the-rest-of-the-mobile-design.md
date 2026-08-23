@@ -25,11 +25,15 @@ Read the spec for the *why*. This file is the *how it lands*.
 
 - **Move's destination picker.** Confirmed: the tree sheet (Card 4) is the widget,
   in a "pick a folder" mode. But the *flow* stays deferred — Card 5 lands the
-  `Mover` button only, because `handle_mv` (`copyparty/httpcli.py:6808`) moves
-  **one file per request** (`POST <src>?move=<dst>`, dst being the full destination
-  path including filename), so a multi-file move is N requests with N partial-failure
-  states and no batch endpoint to lean on. That is a flow to design, not a button to
-  wire.
+  `Mover` button only, for two reasons. `?move=` takes **one source per request**
+  (`POST <src>?move=<dst>`, dst being the full destination path including filename),
+  so N selected items are N requests with N partial-failure states and no batch
+  endpoint to lean on. And a folder source is a **long, abortable** operation:
+  `up2k.handle_mv` (`copyparty/up2k.py:4590`) walks the whole tree server-side when
+  the source is a directory (`:4623-4659`), checking an abort key after every file,
+  which is what `?fs_abrt` (`httpcli.py:6871`) exists for. So the flow needs progress
+  and cancellation, not just a destination picker. That is a flow to design, not a
+  button to wire.
 - **Density toggle.** A row in the settings screen (Card 2), alongside the other
   display preferences. The design gives the compact metrics (`9px 16px`) without
   saying what switches it; nothing else in the design is a plausible home.
@@ -78,7 +82,8 @@ retrofitted after the fact — the pass that never happens.
 | new folder | `POST <vpath>` multipart, `act=mkdir` + `name` (dispatch `httpcli.py:3100`, `handle_mkdir:3736`) |
 | folder tree | `GET <vpath>?tree=<top>` → `{"a": [names], "k<name>": {nested}}` (`gen_tree:6088`) |
 | delete | `POST <vpath>?delete` + JSON list of vpaths (`handle_rm:6777`) — one request for N files |
-| move | `POST <src>?move=<dst>` (`handle_mv:6808`) — one request per file |
+| move | `POST <src>?move=<dst>` (`handle_mv:6808`) — one request per **item**; a folder source is walked server-side (`up2k.py:4590`), so a whole tree is still one request |
+| abort a move | `POST <vpath>?fs_abrt=<akey>` (`handle_fs_abrt:6871`) — folder moves check the key after every file |
 | thumbnails | `GET <file>?th=x\|w\|j` (+`f` no-crop, +`3` hi-res), format chosen by browser probe as in `browser.js:5873-5878` |
 | recursive search | `POST <vpath>?srch` + `{"q": "...", "n": N}` (`handle_search:3267`), `path` keyword in the DSL (`u2idx.py:272`) |
 | dotfiles | `dots` in the **query string** of every `?ls` (see below) |
@@ -258,9 +263,11 @@ commits:
               - Excluir posts **one** request: `POST <vpath>?delete` with the JSON
                 list of selected vpaths (`handle_rm`, httpcli.py:6777), behind a
                 confirmation naming the count (spec §D6)
-              - Mover lands as a **button only** — `handle_mv` (:6808) is one file
-                per request, so the multi-file flow is deferred (see "Decisions
-                pinned here"); tapping it says so rather than doing half a move
+              - Mover lands as a **button only** — one request per selected item,
+                and a folder source is a long abortable server-side walk
+                (`up2k.py:4590`), so the flow needs progress and cancellation and is
+                deferred (see "Decisions pinned here"); tapping it says so rather
+                than doing half a move
               - Baixar and Excluir gate on `srvcfg.have_zip` / `have_del` and on
                 `perms`; a server started `--no-del` shows no delete
 done when:     suite green, no `.py` in the diff, and: long-press enters the mode and
