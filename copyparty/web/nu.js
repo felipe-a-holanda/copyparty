@@ -33,7 +33,10 @@ function esc(t) {
 
 var STR = {
 	tree_h: "Folders",
-	tree_gone: "this volume is unreachable"
+	tree_gone: "this volume is unreachable",
+	ctx_open: "Open",
+	ctx_dl: "Download",
+	ctx_old: "Open in the classic UI"
 };
 
 function t(k) {
@@ -579,6 +582,151 @@ function pick_sort(k) {
 	draw();
 }
 
+// -- context menu ------------------------------------------------------
+//
+// a declarative table and not a switch, the same shape 0001 uses for its
+// overflow router: a later spec adds a row here instead of redesigning the
+// menu.
+//
+//   [ key, label key, enabled(row), do(row) ]
+//
+// every row is an ACCELERATOR for something already reachable by a visible
+// control, never the only door to it -- spec 0002 D2: nothing may be
+// hover-only, because a hybrid laptop can be driven by finger at 1400px and
+// an action that lived only here would be unreachable there. that is why
+// copy-link and the destructive actions are absent; they land with 0001's
+// selection mode and its `...` router, which gives them their visible door
+// first.
+//
+// the row element is the whole argument: `.nu_dir` and the href are already
+// on it, so nothing here has to be threaded back to the listing.
+
+var CTX = [
+	["open", "ctx_open",
+		function (r) { return !!r; },
+		function (r) { location.href = r.href; }],
+
+	["dl", "ctx_dl",
+		function (r) { return !r.classList.contains("nu_dir"); },
+		function (r) {
+			// `dl` is the server's own force-download switch (httpcli.py's
+			// ouparam handling at :4714 and :4891); the bytes are the same
+			// ones a plain click on the row already serves
+			var h = r.getAttribute("href");
+			location.href = h + (h.indexOf("?") < 0 ? "?dl" : "&dl");
+		}],
+
+	["old", "ctx_old",
+		function (r) { return !!r; },
+		function (r) {
+			// a file has no classic page of its own, so its folder -- the
+			// one we are looking at -- is what the classic UI can show.
+			// ?nu0 beats the ui=nu cookie for that one request
+			// (httpcli.py:7308-7309), same as the header's link.
+			var h = r.classList.contains("nu_dir")
+				? r.getAttribute("href").split("?")[0]
+				: location.pathname;
+
+			location.href = h + "?nu0";
+		}]
+];
+
+var ctx_row = null;
+
+function ctx_hide() {
+	var el = ebi("nu_ctx");
+	if (el && !el.hidden) {
+		el.hidden = true;
+		el.innerHTML = "";
+	}
+	ctx_row = null;
+}
+
+function ctx_show(row, x, y) {
+	var el = ebi("nu_ctx"), h = [];
+	ctx_row = row;
+
+	for (var a = 0; a < CTX.length; a++) {
+		var c = CTX[a], ok = false;
+		try { ok = !!c[2](row); }
+		catch (ex) { }
+
+		h.push('<button type="button" role="menuitem" class="nu_ctxb" data-k="' +
+			esc(c[0]) + '"' + (ok ? "" : " disabled") + '>' +
+			esc(t(c[1])) + '</button>');
+	}
+
+	el.innerHTML = h.join("");
+	// left/top before the measure, so a menu opened near the right edge is
+	// not measured while wrapped against it
+	el.style.left = el.style.top = "0px";
+	el.hidden = false;
+
+	var w = el.offsetWidth,
+		hh = el.offsetHeight,
+		vw = document.documentElement.clientWidth,
+		vh = document.documentElement.clientHeight;
+
+	// flipped rather than clamped: a menu clamped to the edge sits under
+	// the cursor and the first item eats the click that opened it
+	if (x + w > vw - 6)
+		x = Math.max(6, x - w);
+
+	if (y + hh > vh - 6)
+		y = Math.max(6, y - hh);
+
+	el.style.left = x + "px";
+	el.style.top = y + "px";
+
+	// focus the first live item: it makes the menu keyboard-operable, and
+	// it puts the active element on a <button>, which is what lets the
+	// keydown handler's typing guard let Escape through
+	var b = el.querySelector(".nu_ctxb:not([disabled])");
+	if (b)
+		b.focus();
+}
+
+function ctx_menu(e) {
+	var r = e.target && e.target.closest ? e.target.closest(".nu_row") : null;
+	if (!r)
+		return ctx_hide();
+
+	e.preventDefault();
+	ctx_show(r, e.clientX, e.clientY);
+}
+
+// one document click handler for both doors out: an item, or anywhere else
+function ctx_click(e) {
+	var b = e.target && e.target.closest ? e.target.closest(".nu_ctxb") : null;
+	if (!b)
+		return ctx_hide();
+
+	var r = ctx_row, k = b.getAttribute("data-k");
+	ctx_hide();
+
+	if (!r || b.disabled)
+		return;
+
+	for (var a = 0; a < CTX.length; a++)
+		if (CTX[a][0] == k)
+			return CTX[a][3](r);
+}
+
+// attached and detached for real, never gated in css alone
+function ctx_bind(on) {
+	if (on) {
+		document.addEventListener("contextmenu", ctx_menu);
+		document.addEventListener("click", ctx_click);
+		window.addEventListener("scroll", ctx_hide, true);
+	}
+	else {
+		ctx_hide();
+		document.removeEventListener("contextmenu", ctx_menu);
+		document.removeEventListener("click", ctx_click);
+		window.removeEventListener("scroll", ctx_hide, true);
+	}
+}
+
 // -- load --------------------------------------------------------------
 
 function take(ls) {
@@ -1050,11 +1198,18 @@ function tree_boot() {
 		var k = e.key;
 
 		if (k == "Escape") {
+			ctx_hide();
+
 			if (ST.sheet)
 				sheet(false);
 
 			return;
 		}
+
+		// the menu owns the keyboard while it is open; walking the list
+		// underneath it would drag focus out from under the menu
+		if (ctx_row)
+			return;
 
 		// never steal a browser shortcut; shift is left alone because
 		// shift+arrow is range selection, and selection is 0001's card 5
@@ -1108,6 +1263,22 @@ function tree_boot() {
 			tree_boot();
 		else
 			CAP.on("wide", function (v) { if (v) tree_boot(); });
+	}
+
+	// the right-click menu is a mouse affordance, so the listener is
+	// installed only where there is a mouse -- and removed again the moment
+	// there is not. CAP re-reads the query on change, so a tablet that gets
+	// a trackpad gains the menu, and a hybrid folded back into a slate
+	// loses it, both without a reload.
+	//
+	// --ui-noctxb ("hide context-buttons in the UI", __main__.py:2029) is
+	// the admin's existing switch and it is read before anything else: with
+	// the volflag set there is no listener and no subscription either, so
+	// right-click falls through to the browser's own menu at every width
+	// and on every pointer.
+	if (!srvcfg.ui_noctxb) {
+		ctx_bind(CAP.fine);
+		CAP.on("fine", function (v) { ctx_bind(v); });
 	}
 
 	render_chips();

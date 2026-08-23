@@ -59,6 +59,12 @@
 
 	<div id="nu_veil" hidden></div>
 
+	<!-- the right-click menu. empty and hidden until nu.js renders it from
+	     CTX, and nu.js only ever installs the listener under
+	     (hover: hover) and (pointer: fine) -- a css-only gate would hide
+	     this box while the listener kept swallowing the right-click. -->
+	<div id="nu_ctx" hidden role="menu"></div>
+
 	<section id="nu_sheet" hidden aria-modal="true" role="dialog">
 		<div class="nu_grip"></div>
 		<div class="nu_shead">

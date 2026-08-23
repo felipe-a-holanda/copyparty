@@ -726,6 +726,54 @@ a {
 	}
 }
 
+/* ---- context menu ---- */
+
+/* there is deliberately NO width query and no capability query on this
+   box: nu.js installs the contextmenu listener only under
+   (hover: hover) and (pointer: fine) and detaches it again when that stops
+   matching, so the menu cannot be summoned where it does not belong. a
+   css-only gate would hide the affordance while the listener kept eating
+   the right-click, which is the bug spec 0002 D2 exists to prevent. */
+#nu_ctx {
+	position: fixed;
+	z-index: 10;
+	min-width: 190px;
+	padding: 6px;
+	border-radius: 12px;
+	background: var(--surface);
+	border: 1px solid var(--line);
+	box-shadow: 0 10px 34px rgba(20, 20, 30, .22);
+}
+
+.nu_ctxb {
+	display: block;
+	width: 100%;
+	padding: 9px 12px;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: var(--fg);
+	font: 500 13px var(--font);
+	text-align: left;
+	cursor: pointer;
+}
+
+.nu_ctxb[disabled] {
+	color: var(--fg4);
+	cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.nu_ctxb:hover:not([disabled]) {
+		background: var(--hov);
+	}
+}
+
+.nu_ctxb:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
+}
+
 /* ---- footer ---- */
 
 #nu_foot {
