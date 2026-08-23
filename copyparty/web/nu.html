@@ -75,6 +75,13 @@
 	<script nonce="{{ js_nonce }}">
 		var SR = "{{ r }}",
 			TS = "{{ ts }}",
+			// the admin's ui_* switches and the server's capabilities.
+			// raw, never |tojson: vn.js_htm is already a json *string*
+			// (json_hesc(json.dumps(...)) in authsrv.py), which is why
+			// browser.html, md.html and mde.html all interpolate cgv1
+			// bare too. encoding it twice hands nu a String, and every
+			// capability gate then reads undefined.
+			srvcfg = {{ cgv1 }},
 			lang = "{{ lang }}",
 			dtheme = "{{ dtheme }}",
 			have_tags_idx = {{ have_tags_idx }},

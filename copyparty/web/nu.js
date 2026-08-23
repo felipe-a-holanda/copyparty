@@ -1032,14 +1032,23 @@ function tree_boot() {
 			sheet(false);
 	});
 
-	// the dock is a wide-band surface, so the widget is only ever built
-	// once the band is actually entered -- at boot if we start there, and
-	// otherwise on the first crossing. CAP re-reads the query on change,
-	// so a window dragged wider gets its dock without a reload.
-	if (CAP.wide)
-		tree_boot();
-	else
-		CAP.on("wide", function (v) { if (v) tree_boot(); });
+	// --ui-notree has meant "hide navpane in the UI" since __main__.py's
+	// 2026, and nu is the first UI that could not see it. the key is in
+	// js_htm only when the volflag is truthy (authsrv.py:3338-3341), so a
+	// plain truthiness read is the whole gate -- and it sits here, above
+	// the subscription, so the dock is neither rendered nor fetched and
+	// #nu_shell never gets its data-tree.
+	//
+	// otherwise the dock is a wide-band surface, so the widget is only
+	// ever built once the band is actually entered -- at boot if we start
+	// there, and otherwise on the first crossing. CAP re-reads the query
+	// on change, so a window dragged wider gets its dock without a reload.
+	if (!srvcfg.ui_notree) {
+		if (CAP.wide)
+			tree_boot();
+		else
+			CAP.on("wide", function (v) { if (v) tree_boot(); });
+	}
 
 	render_chips();
 	build_head();
