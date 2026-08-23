@@ -193,6 +193,7 @@ class HttpSrv(object):
             "md",
             "mde",
             "msg",
+            "nu",
             "rups",
             "shares",
             "splash",

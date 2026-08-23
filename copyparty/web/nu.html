@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" id="ht_nu">
+
+<head>
+	<meta charset="utf-8">
+	<title>{{ title }}</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="theme-color" content="#{{ tcolor }}">
+	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/w/nu.css?_={{ ts }}">
+{{ html_head }}
+	{%- if css %}
+	<link rel="stylesheet" media="screen" href="{{ css }}_={{ ts }}">
+	{%- endif %}
+</head>
+
+<body>
+	<header id="nu_top">
+		<nav id="nu_crumbs">
+			{%- for n in vpnodes %}
+			<a href="{{ r }}/{{ n[0] }}">{{ n[1] }}</a>
+			{%- endfor %}
+		</nav>
+		<div id="nu_tools">
+			<button id="nu_pin" type="button" title="make default">☆</button>
+			<button id="nu_thm" type="button" title="theme">◐</button>
+			<a id="nu_old" href="?nu0" rel="nofollow" title="open this folder in the classic UI">classic UI</a>
+		</div>
+	</header>
+
+	<main id="nu_main">
+		<div id="nu_list" aria-live="polite"></div>
+	</main>
+
+	<footer id="nu_foot">
+		<span id="nu_srv">{{ srv_info }}</span>
+		<span id="nu_note"></span>
+	</footer>
+
+	<script nonce="{{ js_nonce }}">
+		var SR = "{{ r }}",
+			TS = "{{ ts }}",
+			lang = "{{ lang }}",
+			dtheme = "{{ dtheme }}",
+			have_tags_idx = {{ have_tags_idx }},
+			taglist = {{ taglist|tojson }},
+			perms = {{ cgv.perms|tojson }},
+			acct = {{ cgv.acct|tojson }},
+			ls0 = {{ ls0|tojson }};
+	</script>
+	<script nonce="{{ js_nonce }}" src="{{ r }}/.cpr/w/nu.js?_={{ ts }}"></script>
+	{%- if js %}
+	<script nonce="{{ js_nonce }}" src="{{ js }}_={{ ts }}"></script>
+	{%- endif %}
+</body>
+
+</html>

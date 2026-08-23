@@ -98,6 +98,9 @@ web/mde.css
 web/mde.html
 web/mde.js
 web/msg.html
+web/nu.css
+web/nu.html
+web/nu.js
 web/opds.xml
 web/rups.css
 web/rups.html

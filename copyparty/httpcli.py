@@ -161,7 +161,7 @@ _ = (argparse, threading)
 
 USED4SEC = {"usedforsecurity": False} if sys.version_info > (3, 9) else {}
 
-ALL_COOKIES = "cplng cppwd cppws dots idxh js k304 no304".split()
+ALL_COOKIES = "cplng cppwd cppws dots idxh js k304 no304 ui".split()
 
 BADXFF = " due to dangerous misconfiguration (the http-header specified by --xff-hdr was received from an untrusted reverse-proxy)"
 BADXFF2 = ". Some copyparty features are now disabled as a safety measure.\n\n\n"
@@ -7304,6 +7304,14 @@ class HttpCli(object):
             if not self.can_read:
                 raise Pebkac(401, "OPDS requires read permission")
             is_js = is_ls = False
+        elif not is_ls and (
+            "nu" in self.uparam
+            or (self.cookies.get("ui") == "nu" and "nu0" not in self.uparam)
+        ):
+            # the new UI; ?nu forces it, ?nu0 escapes it, ?b is always the
+            # panic-button back to the basic browser. see web/nu.js
+            tpl = "nu"
+            is_js = True
 
         vf = vn.flags
         ls_ret = {
