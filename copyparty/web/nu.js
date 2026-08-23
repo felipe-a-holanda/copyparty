@@ -679,8 +679,8 @@ function ctx_show(row, x, y) {
 	el.style.top = y + "px";
 
 	// focus the first live item: it makes the menu keyboard-operable, and
-	// it puts the active element on a <button>, which is what lets the
-	// keydown handler's typing guard let Escape through
+	// it puts the active element on a <button>, which the keydown
+	// handler's typing guard does not catch
 	var b = el.querySelector(".nu_ctxb:not([disabled])");
 	if (b)
 		b.focus();
@@ -1180,23 +1180,13 @@ function tree_boot() {
 	// re-derive the typing guard, and the day they disagree the bug is
 	// invisible.
 	document.addEventListener("keydown", function (e) {
-		// the typing guard comes FIRST, and is deliberately wider than the
-		// one it is modeled on: the classic UI reads the active element the
-		// same way (browser.js:6237-6238) but then guards on `input` alone
-		// (:6306-6307). a textarea eats arrow keys exactly like #nu_q does,
-		// a <select> eats them to change its value, and a contenteditable
-		// eats them to move a caret -- the extra branches cost nothing and
-		// `isContentEditable` appears nowhere else under web/ because
-		// nothing else here has had to care yet.
-		var ae = document.activeElement,
-			aet = ae ? (ae.nodeName || "").toLowerCase() : "";
-
-		if (aet == "input" || aet == "textarea" || aet == "select" ||
-			(ae && ae.isContentEditable))
-			return;
-
 		var k = e.key;
 
+		// Escape comes FIRST, above the typing guard on purpose: a text
+		// field eats arrow keys, but it does not eat Escape, and the place
+		// the user is most likely to be typing (#nu_q) is exactly where
+		// they reach for Escape to close the sheet. so Escape stays
+		// unconditional -- the guard below covers the navigation keys.
 		if (k == "Escape") {
 			ctx_hide();
 
@@ -1205,6 +1195,21 @@ function tree_boot() {
 
 			return;
 		}
+
+		// the typing guard, which owns everything below it, is deliberately
+		// wider than the one it is modeled on: the classic UI reads the
+		// active element the same way (browser.js:6237-6238) but then guards
+		// on `input` alone (:6306-6307). a textarea eats arrow keys exactly
+		// like #nu_q does, a <select> eats them to change its value, and a
+		// contenteditable eats them to move a caret -- the extra branches
+		// cost nothing and `isContentEditable` appears nowhere else under
+		// web/ because nothing else here has had to care yet.
+		var ae = document.activeElement,
+			aet = ae ? (ae.nodeName || "").toLowerCase() : "";
+
+		if (aet == "input" || aet == "textarea" || aet == "select" ||
+			(ae && ae.isContentEditable))
+			return;
 
 		// the menu owns the keyboard while it is open; walking the list
 		// underneath it would drag focus out from under the menu
