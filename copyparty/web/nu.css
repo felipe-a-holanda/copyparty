@@ -244,6 +244,13 @@ a {
 	appearance: none;
 }
 
+/* the search box zeroes the UA outline for the pill look; give it a real
+   ring back, or the keyboard loses the one control it lands on first. */
+#nu_q:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+}
+
 #nu_q::placeholder {
 	color: var(--fg2);
 }
@@ -274,6 +281,11 @@ a {
 	color: var(--fg3);
 	font: 500 13px var(--font);
 	cursor: pointer;
+}
+
+.nu_chip:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
 }
 
 .nu_chip.on {
@@ -307,6 +319,16 @@ a {
 	cursor: pointer;
 }
 
+/* the sort button and the two header links. #nu_up and #nu_old are the
+   header's buttons in everything but tag name. */
+#nu_sort:focus-visible,
+#nu_up:focus-visible,
+#nu_old:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+	border-radius: 6px;
+}
+
 /* ---- list ---- */
 
 #nu_main {
@@ -336,10 +358,32 @@ a {
 	border-bottom: 1px solid var(--line-soft);
 	width: 100%;
 	text-align: left;
+	transition: background .12s ease;
+}
+
+/* hover is an input capability, never a width: a 1400px touch tablet must
+   get no hover fill at all, so this is gated on the pointer and not on the
+   band. it is declared ABOVE :active on purpose -- both selectors are one
+   class plus one pseudo-class, so specificity ties and source order is the
+   whole tiebreak; below it, a hover would repaint the row the user is
+   currently pressing. */
+@media (hover: hover) and (pointer: fine) {
+	.nu_row:hover {
+		background: var(--hov);
+	}
 }
 
 .nu_row:active {
 	background: var(--sel);
+}
+
+/* the ring. :focus-visible and not :focus, so a mouse click on a row does
+   not leave one behind -- the keyboard traversal is what this is for. */
+.nu_row:focus-visible {
+	/* the row is full-bleed, so a positive offset would be clipped at the
+	   viewport edge; inset it instead */
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
 }
 
 /* the density opt-out. the wide band sets --row-pad on :root inside a media
@@ -508,7 +552,8 @@ a {
 @media (prefers-reduced-motion) {
 
 	#nu_veil,
-	#nu_sheet {
+	#nu_sheet,
+	.nu_row {
 		transition: none;
 	}
 }
