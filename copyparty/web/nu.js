@@ -19,6 +19,27 @@ function esc(t) {
 	});
 }
 
+// -- strings -----------------------------------------------------------
+//
+// a shim, deliberately: `Ls` lives in util.js and nu does not load util.js,
+// the `tl/{{ lang }}.js` tag has to be guarded on `lang != "eng"` (there is
+// no web/tl/eng.js), and the classic UI resolves `Ls[lang]` as a whole
+// object with no per-key fallback (browser.js:716). all three belong to one
+// owner, and that is spec 0001's first card, which lifts STR wholesale into
+// `Ls.eng` and replaces t()'s body. until then every string this UI adds is
+// already routed through t(), so that lift is a rename and not a hunt for
+// literals. the older strings are not moved here in the same breath -- that
+// is 0001's diff to make, not a second one to reconcile.
+
+var STR = {
+	tree_h: "Folders",
+	tree_gone: "this volume is unreachable"
+};
+
+function t(k) {
+	return STR[k] || k;
+}
+
 // -- data shape --------------------------------------------------------
 //
 // `ls0` is embedded in the html by httpcli (the is_js branch), so the first
@@ -794,6 +815,154 @@ function tree_expand(node, cb) {
 		});
 }
 
+// -- the folder tree, on screen ----------------------------------------
+//
+// render_tree() takes its container as an ARGUMENT: the dock is what
+// mounts it today and 0001 card 4's bottom sheet is what mounts it at
+// phone width, and building the widget twice is how two UIs for one thing
+// drift apart. the container is the only width-aware half.
+
+// the folder we are standing in, decoded, for the current-path mark
+var TREE_HERE = tree_vp(vpnodes.length - 1)[0];
+
+function tree_find(node, vp) {
+	if (!node)
+		return null;
+
+	if (node.vp === vp)
+		return node;
+
+	for (var a = 0; a < (node.kids || []).length; a++) {
+		var hit = tree_find(node.kids[a], vp);
+		if (hit)
+			return hit;
+	}
+	return null;
+}
+
+function tree_node_html(n) {
+	var open = !!ST.tree.expanded[n.vp],
+		cls = "nu_tn" + (n.dead ? " nu_tdead" : "") +
+			(n.vp === TREE_HERE ? " nu_tcur" : ""),
+		h = '<li class="' + cls + '">';
+
+	// an unreachable sub-volume is a disabled node -- never a name with a
+	// line break in it, and never a link, because there is nothing behind
+	// it to open
+	if (n.dead)
+		return h + '<span class="nu_tw"></span><span class="nu_tl" title="' +
+			esc(t("tree_gone")) + '">' + esc(n.name) + '</span></li>';
+
+	// only the chevron expands. the rest of the node navigates, through
+	// keep() so the ?nu mode survives -- keep() already appends &nu rather
+	// than ?nu when the href carries a dirkey.
+	var href = SR + "/" + (n.ev ? n.ev + "/" : "") + (n.key ? "?k=" + n.key : "");
+
+	h += '<button type="button" class="nu_tw' + (open ? " on" : "") +
+		'" data-vp="' + esc(n.vp) + '" aria-expanded="' + (open ? "true" : "false") +
+		'">&rsaquo;</button>' +
+		'<a class="nu_tl" href="' + esc(keep(href)) + '">' + esc(n.name) + '</a>';
+
+	if (open && n.kids)
+		h += '<ul class="nu_tul">' + tree_kids_html(n.kids) + '</ul>';
+
+	return h + '</li>';
+}
+
+function tree_kids_html(nodes) {
+	var h = [];
+	for (var a = 0; a < nodes.length; a++)
+		h.push(tree_node_html(nodes[a]));
+
+	return h.join("");
+}
+
+function render_tree(el) {
+	if (!ST.tree.root)
+		return;
+
+	el.innerHTML = '<h2 class="nu_th">' + esc(t("tree_h")) + '</h2>' +
+		'<ul class="nu_tul nu_troot">' + tree_node_html(ST.tree.root) + '</ul>';
+
+	el.onclick = function (e) {
+		var b = e.target.closest(".nu_tw");
+		if (!b)
+			return;
+
+		e.preventDefault();
+		tree_toggle(el, b.getAttribute("data-vp"));
+	};
+}
+
+// re-render, then put focus back on the chevron that was just clicked --
+// the whole subtree is rewritten, so the button the user is holding is a
+// different element afterwards
+function tree_redraw(el, vp) {
+	render_tree(el);
+	var bs = el.querySelectorAll(".nu_tw");
+	for (var a = 0; a < bs.length; a++)
+		if (bs[a].getAttribute("data-vp") === vp)
+			return bs[a].focus();
+}
+
+function tree_toggle(el, vp) {
+	var n = tree_find(ST.tree.root, vp);
+	if (!n)
+		return;
+
+	if (ST.tree.expanded[vp]) {
+		ST.tree.expanded[vp] = false;
+		return tree_redraw(el, vp);
+	}
+
+	// `kids` survives a collapse, so reopening a branch costs no request
+	if (n.kids) {
+		ST.tree.expanded[vp] = true;
+		return tree_redraw(el, vp);
+	}
+
+	tree_expand(n, function (err) {
+		if (err)
+			return;
+
+		ST.tree.expanded[vp] = true;
+		tree_redraw(el, vp);
+	});
+}
+
+// the ONLY writer of data-tree on #nu_shell. the 16em track is opt-in on
+// that attribute (nu.css), so every path that does not render a dock --
+// a window that never widens, a ?tree= that failed -- leaves one column
+// and no empty gutter, and the column and its contents appear in the same
+// frame.
+function tree_dock(el) {
+	el.hidden = false;
+	ebi("nu_shell").setAttribute("data-tree", "1");
+}
+
+// the dock fetches when it FIRST becomes visible, not at boot: a phone
+// that never widens must not pay a ?tree= roundtrip, and the one request a
+// resize past 64em triggers is the correct price. once, behind a flag --
+// set before the request, so flapping across the breakpoint cannot start
+// a second one.
+var tree_lit = false;
+
+function tree_boot() {
+	if (tree_lit)
+		return;
+
+	tree_lit = true;
+	tree_first(function (err, root) {
+		if (err)
+			return;
+
+		ST.tree.root = root;
+		var el = ebi("nu_tree");
+		render_tree(el);
+		tree_dock(el);
+	});
+}
+
 // -- boot --------------------------------------------------------------
 
 (function () {
@@ -862,6 +1031,15 @@ function tree_expand(node, cb) {
 		if (e.key == "Escape" && ST.sheet)
 			sheet(false);
 	});
+
+	// the dock is a wide-band surface, so the widget is only ever built
+	// once the band is actually entered -- at boot if we start there, and
+	// otherwise on the first crossing. CAP re-reads the query on change,
+	// so a window dragged wider gets its dock without a reload.
+	if (CAP.wide)
+		tree_boot();
+	else
+		CAP.on("wide", function (v) { if (v) tree_boot(); });
 
 	render_chips();
 	build_head();

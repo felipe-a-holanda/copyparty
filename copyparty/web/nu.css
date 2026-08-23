@@ -581,6 +581,106 @@ a {
 	font-weight: 600;
 }
 
+/* ---- folder tree ----
+
+   the widget only, and deliberately width-agnostic: the dock is styled
+   with #nu_tree in the wide band below, and 0001's bottom sheet will
+   mount the same markup at phone width. nothing here may assume either
+   container. */
+
+.nu_th {
+	margin: 0;
+	padding: 12px 10px 6px;
+	font: 600 11px var(--font);
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	color: var(--fg2);
+}
+
+.nu_tul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/* every level is indented by its own nesting, so the rule is one line and
+   the depth is whatever the tree says it is */
+.nu_tul .nu_tul {
+	padding-left: 13px;
+	border-left: 1px solid var(--line-soft);
+	margin-left: 9px;
+}
+
+.nu_tn {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.nu_tn > .nu_tul {
+	flex: 1 0 100%;
+}
+
+/* the chevron is the ONLY expander; it is a real button so it can be
+   tabbed to, and 20px wide so a finger has something to hit when the
+   sheet mounts this widget at phone width */
+.nu_tw {
+	flex: 0 0 auto;
+	width: 20px;
+	height: 26px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: var(--chev);
+	font: 15px var(--font);
+	line-height: 1;
+	cursor: pointer;
+	transform: rotate(0deg);
+	transition: transform .12s ease;
+}
+
+.nu_tw.on {
+	transform: rotate(90deg);
+	color: var(--fg3);
+}
+
+/* a dead node keeps the chevron's box so its name lines up with its
+   siblings, but has no control in it */
+.nu_tdead > .nu_tw {
+	cursor: default;
+}
+
+.nu_tl {
+	flex: 1;
+	min-width: 0;
+	padding: 4px 6px;
+	border-radius: 8px;
+	color: var(--fg3);
+	font: 13px var(--font);
+	text-decoration: none;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.nu_tcur > .nu_tl {
+	color: var(--accent);
+	font-weight: 700;
+}
+
+.nu_tdead > .nu_tl {
+	color: var(--fg4);
+	text-decoration: line-through;
+	cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion) {
+
+	.nu_tw {
+		transition: none;
+	}
+}
+
 /* ---- footer ---- */
 
 #nu_foot {
@@ -651,6 +751,8 @@ a {
 	}
 
 	#nu_tree {
+		padding: 0 6px 24px 12px;
+		border-right: 1px solid var(--line-soft);
 		position: sticky;
 		top: var(--head-h);
 		/* a stretched grid item is exactly as tall as its row and has no
