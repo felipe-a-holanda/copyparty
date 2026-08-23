@@ -9,6 +9,8 @@ tags: [plan, status/planejado]
 par: "[[specs/0002-nu-desktop-is-a-first-class-width|spec]]"
 ---
 
+**Hardened:** 2026-08-23 against `b79cc1c8`
+
 > Six sessions that make width a variable in `nu`: three bands over one markup, a
 > docked folder tree, a real column grid with a sortable header, and a desktop input
 > model. No new route, no new parameter, no new response field, no `.py` diff.
@@ -24,11 +26,11 @@ retrofitted at one.
 Read `docs/specs/0002-nu-desktop-is-a-first-class-width.md` for the *why*. This file is
 the *how it lands*.
 
-What is in the tree today, verified at `c358efcb`:
+What is in the tree today, verified at `b79cc1c8`:
 
 | fact | anchor |
 |---|---|
-| exactly one layout `@media` rule, unbounded `min-width: 700px`, capping three ids at 760px | `copyparty/web/nu.css:518-537` |
+| exactly one layout `@media` rule, unbounded `min-width: 700px`, capping three ids at 760px | `copyparty/web/nu.css:518-538` (the file's only other `@media` is the dark palette, `:46`) |
 | the row's meta is one concatenated string, and a *different* one per row kind | `copyparty/web/nu.js:280-282` |
 | name and sub are nested inside a `flex: 1` wrapper, so they are not row-level siblings | `copyparty/web/nu.css:341-344` |
 | `#nu_top`, `#nu_main`, `#nu_foot` are direct children of `<body>`; the header is `position: sticky` | `copyparty/web/nu.html:17,42,57`; `nu.css:135-136` |
@@ -111,21 +113,25 @@ Five findings that move work or change how a commit is written.
 ### `cfg.idx` is the wrong gate for a folder's size cell — `nfiles(f)` is the right one
 
 Spec §D4 says to show a folder's recursive size "when `cfg.idx` says the volume is
-indexed". That leaks the bug it was written to prevent. `httpcli.py:7628-7640` fills
-`fe["sz"]` and `fe["tags"][".files"]` from **one** query — `select sz, nf from ds` —
-and only when `"nodirsz" not in vf`. So on an `-e2d` volume carrying the `nodirsz`
-volflag, `cfg.idx` is `true` and `sz` is still 4096. There is no `nodirsz` cell in
-`js_ls` (`authsrv.py:3264-3282`) to test instead.
+indexed". That leaks the bug it was written to prevent. `httpcli.py:7628-7637` fills
+`fe["sz"]` and `fe["tags"][".files"]` in **one** tuple assignment from **one** query —
+`select sz, nf from ds` (`:7631`, unpacked at `:7635`) — and only when
+`"nodirsz" not in vf` (`:7628`). So on an `-e2d` volume carrying the `nodirsz` volflag,
+`cfg.idx` is `true` and `sz` is still 4096. `idx` is a real `js_ls` cell
+(`authsrv.py:3265`); `nodirsz` is not a cell at all (`:3264-3282`), so there is nothing
+volume-level to test instead.
 
-But the two values arrive together, per entry, with a per-entry `except: pass` for 404
-and mojibake. So `nfiles(f) !== null` (`nu.js:58-61`) is **exactly** the predicate "this
-row's recursive size was filled" — sharper than any volume-level flag, and already in
-the file. The rule becomes: *a dir's size cell exists only when `nfiles(f) !== null`*,
-and then narrow renders the item count and wide renders `humansize(f.sz)`. When it is
-null the cell is not emitted at all — which is also what keeps the narrow meta line
-free of a leading separator (see below).
+But the two values arrive together, per entry, and a miss raises inside the per-entry
+`try` and leaves **both** unset (`:7633-7637`, `except: pass` for 404 and mojibake). So
+`nfiles(f) !== null` (`nu.js:58-61`) is the predicate "this row's recursive size was
+filled" — sharper than any volume-level flag, and already in the file. Its one failure
+mode is a closed one: a row whose `nf` column is null loses a size cell it could have
+shown, and never shows 4096 as a size. The rule becomes: *a dir's size cell exists only
+when `nfiles(f) !== null`*, and then narrow renders the item count and wide renders
+`humansize(f.sz)`. When it is null the cell is not emitted at all — which is also what
+keeps the narrow meta line free of a leading separator (see below).
 
-### The grid goes on `.nu_row`, not on `#nu_list` — which dissolves two of the spec's cautions and creates one rule
+### The grid goes on `.nu_row`, not on `#nu_list` — which dissolves two of the spec's cautions and creates two rules
 
 Spec §D4 warns that `.nu_empty` needs `grid-column: 1 / -1` and that row children differ
 in count. Both come from assuming `#nu_list` is the grid. It cannot be: rows are `<a>`
@@ -138,10 +144,21 @@ So **each `.nu_row` is its own grid**, `#nu_list` stays a plain block, and:
 - a missing `.nu_go` (files) or a missing size cell costs nothing, because every cell is
   placed by **name**, not by order.
 
-The price is one hard rule: **no `auto` tracks.** Each row is an independent grid, so
-columns line up across rows only if every track is content-independent. `minmax(0, 1fr)`
-for Name, fixed `em` for the rest — and the column header uses the *same* declaration,
-shared through a `--nu-cols` custom property so there is one definition of the truth.
+The price is two rules, both hard.
+
+**No `auto` tracks.** Each row is an independent grid, so columns line up across rows
+only if every track is content-independent. `minmax(0, 1fr)` for Name, fixed `em` for
+the rest — and the column header uses the *same* declaration, shared through a
+`--nu-cols` custom property so there is one definition of the truth. `--nu-cols` is not
+the whole truth on its own: `.nu_row` also carries `gap: 14px` and `padding: 14px 16px`
+(`nu.css:306-307`), and both move every track. A header that copies the tracks but not
+the gap and the inline padding starts 16px off and drifts a further 14px per column.
+
+**The CSS separators have to be switched off in the wide band.** `.nu_sub` going
+`display: contents` removes its box, not the selector: `.nu_sub > * + *::before` keeps
+matching, so every column after the first would render `· 1.2 GB` inside its own track.
+The wide band cancels the rule (`content: none`) in the same block that flips the two
+`display: contents`.
 
 ### `display: contents` twice, not a flattened render
 
@@ -159,10 +176,15 @@ must come out character-for-character identical.
 "the wide cell formats from `f.ts` directly, `dt_short()` keeps the narrow bands" (§D4)
 are in tension: JS cannot reformat a cell it is not allowed to re-render.
 
-So a cell whose text differs per band emits **both** forms as two spans, and CSS picks:
+So a cell whose text differs per band carries **both** forms, and CSS picks:
 `<span class="nu_n">` (narrow) and `<span class="nu_w">` (wide). Two cells need it — the
 date (`12 jun` vs a year-bearing form) and a folder's size (`3 items` vs `1.2 GB`).
 `.nu_w { display: none }` is unconditional; the wide band flips both.
+
+The two forms live **inside** the cell, never in its place: the cell stays one element,
+`<span class="nu_c_dt"><span class="nu_n">12 jun</span><span class="nu_w">12 jun
+2019</span></span>`. Two bare sibling spans would put two boxes in one named track and
+would count as two links in the separator chain — one column is one element, always.
 
 ### The narrow separator has to survive a hidden Type cell — so Type goes last in the DOM
 
@@ -172,19 +194,24 @@ only if a hidden cell is never *between* two visible ones: with order
 child and the date as second — which renders `· 12 jun`, the exact regression the spec's
 `:empty` warning is about.
 
-Placement is by named line, so **DOM order is free**. The emitted order is
-`name, size, date, type` — the shedding cell is always the trailing one, and the
-separator chain can never see a gap. Wide reads them as columns in the human order
-because the grid says so, not because the DOM does.
+Placement is by named line, so **DOM order is free**. `.nu_sub` emits
+`size, date, type` — the shedding cell is always the trailing one, and the separator
+chain can never see a gap. (`.nu_name` is not in that chain at all: it stays in
+`.nu_meat`, above the meta line, exactly where it renders today.) Wide reads the cells
+as columns in the human order — Name, Size, Type, Date — because the grid says so, not
+because the DOM does.
 
-## The three bands, in one place
+## The bands, in one place
+
+Three layouts, and one second step **inside** the wide layout — `>= 80em` adds a column
+to the wide band, it does not open a fourth layout.
 
 | band | CSS | what it is |
 |---|---|---|
 | `< 44em` | (no query — the base rules) | the handoff, unchanged |
 | `44em–64em` | `@media (min-width: 44em) and (max-width: 63.99em)` | today's centered 760px column |
 | `>= 64em` | `@media (min-width: 64em)` | tree dock + column grid |
-| `>= 80em` | `@media (min-width: 80em)` | adds the Type column |
+| `>= 80em` | `@media (min-width: 80em)` | the wide band, plus the Type column |
 
 `44em` is 704px at a 16px root, four pixels off today's `700px`; that drift is accepted
 in exchange for tracking the user's font size, and it is the only behavioral change the
@@ -233,10 +260,17 @@ commits:
                 its own height and no travel to stick through (`nu.css:135-136`)
               - `#nu_shell` is an unstyled block below `64em`, so the middle band's
                 centering of `#nu_main` is untouched
-              - at `>= 64em`: `#nu_shell { display: grid; grid-template-columns: 16em
-                minmax(0, 100em); justify-content: start; }` — the dock flush left, the
-                content column capped at `100em` (the spec's 1600px) and the cap on
-                `#nu_top` / `#nu_foot` simply absent, so header and footer span
+              - at `>= 64em`: `#nu_shell { display: grid; grid-template-columns:
+                minmax(0, 100em); justify-content: start; }` — content flush left,
+                capped at `100em` (the spec's 1600px), and the cap on `#nu_top` /
+                `#nu_foot` simply absent, so header and footer span
+              - the dock's column is **opt-in**, not the default:
+                `#nu_shell[data-tree="1"] { grid-template-columns: 16em minmax(0, 100em) }`,
+                and Card 4 writes the attribute when it actually renders the dock. A
+                template that declared the 16em track unconditionally would leave a
+                permanent empty gutter on every `--ui-notree` deployment and on every
+                window that widens before the first `?tree=` answers — the dock is
+                allowed to be absent, the hole is not
               - `#nu_tree` is `position: sticky; top: var(--head-h); max-height:
                 calc(100vh - var(--head-h)); overflow-y: auto`, and stays `hidden` —
                 Card 4 fills it. `--head-h` is written from a `ResizeObserver` on
@@ -274,14 +308,22 @@ commits:
                 code
               - name the one sanctioned exception (0001's grid view, a different
                 renderer over the same `filtered()` output)
-done when:     `python3 -m unittest discover -s tests` green (31 tests at `c358efcb`),
+done when:     `python3 -m unittest discover -s tests` green (31 tests at `b79cc1c8`),
                no `.py` in the diff, and: at 1440×900 the header and footer span the
-               full window with no 760px cap while an empty `16em` gutter sits left of
-               the list; at 800×900 the layout is pixel-identical to `c358efcb`; at
-               390×844 nothing changed at all; and in devtools, switching the emulation
-               profile from desktop to a coarse-pointer device **without reloading**
-               fires the `CAP` callback (a temporary `console.log` is a legitimate way
-               to see it, removed before the commit)
+               full window with no 760px cap, the list starts flush left and `#nu_shell`
+               resolves to **one** track (`getComputedStyle(ebi("nu_shell"))
+               .gridTemplateColumns` is a single value — no 16em gutter before Card 4
+               fills the dock); on a 2000px-wide window that track measures 1600px, not
+               2000px; at 800×900 the layout is pixel-identical to `b79cc1c8`; at
+               702×900 the phone layout is in force where `b79cc1c8` gave the centered
+               column — the accepted 4px drift from `700px` to `44em`, and the only
+               behavioral change this card makes to an existing band; at 390×844 nothing
+               changed at all; `getPropertyValue("--head-h")` on `documentElement`
+               matches `ebi("nu_top").offsetHeight` and **changes** when the header
+               reflows (a folder name long enough to wrap `#nu_nav`); and in devtools,
+               switching the emulation profile from desktop to a coarse-pointer device
+               **without reloading** fires the `CAP` callback (a temporary
+               `console.log` is a legitimate way to see it, removed before the commit)
 
 ### Card 2 — The row stops concatenating, and mobile does not move
 precondition:  Card 1 landed — `t()`/`STR`, the band rules, `.nu_n`/`.nu_w` have a band
@@ -293,23 +335,34 @@ commits:
   1. nu: emit the row's meta as separate fields
      touches: copyparty/web/nu.js  (only these)
      do:      - in `render_list()` (`nu.js:261-300`), replace the `sub` string
-                (`:280-282`) with cells emitted in DOM order **name, size, date, type**,
-                each classed `nu_c_sz` / `nu_c_dt` / `nu_c_ty`, still inside
-                `.nu_meat` > `.nu_sub` (the wrappers survive; Card 2 commit 3 makes them
-                `display: contents` at width)
-              - dual-form cells: the date emits
-                `<span class="nu_n">12 jun</span><span class="nu_w">12 jun 2019</span>`
-                — narrow keeps `dt_short()` (`:64-71`), wide formats from `f.ts`
-                **with the year**, because `f.dt` is stripped from the `?ls` JSON
-                (`httpcli.py:6982`) and cannot be recovered after the first navigation.
-                A folder's size cell emits `N items` / `humansize(f.sz)` the same way
+                (`:280-282`) with one element per field. `.nu_name` does **not** move:
+                it stays the first child of `.nu_meat` (`nu.js:289`, `nu.css:346-354`),
+                because the narrow meta line is `.nu_sub` alone and a name inside it
+                would render as a fourth `·`-joined field. What changes is `.nu_sub`'s
+                single text node, which becomes cells in DOM order **size, date, type**,
+                classed `nu_c_sz` / `nu_c_dt` / `nu_c_ty`. Both wrappers survive; Card 2
+                commit 3 makes them `display: contents` at width
+              - the Type cell carries `ext_of(f)` (`nu.js:42-48`) and is emitted for
+                **files only** — a dir's `ext` is `"---"`, so `ext_of()` falls through to
+                guessing from the name and would label `my.backup` as `backup`. A file
+                with no extension gets no cell either. It is the trailing child, so
+                omitting it can never orphan a separator
+              - dual-form cells are **one element with two spans inside**:
+                `<span class="nu_c_dt"><span class="nu_n">12 jun</span><span
+                class="nu_w">12 jun 2019</span></span>` — narrow keeps `dt_short()`
+                (`:64-71`), wide formats from `f.ts` **with the year**, because `f.dt` is
+                stripped from the `?ls` JSON (`httpcli.py:6982`) and cannot be recovered
+                after the first navigation. A folder's size cell wraps `N items` /
+                `humansize(f.sz)` the same way. Two bare siblings instead of one wrapper
+                would be two boxes in one named track and two links in the separator
+                chain
               - **a cell with nothing to say is not emitted at all** — no empty span.
                 For a dir that means the size cell exists only when
-                `nfiles(f) !== null`; `f.sz` for a dir is `st_size` (~4096) unless the
-                `ds` lookup filled it, and that lookup fills `sz` and `.files` together
-                (`httpcli.py:7628-7640`), so `nfiles()` is the exact predicate.
-                `cfg.idx` is **not** — it is true on a `nodirsz` volume, where `sz` is
-                still 4096
+                `nfiles(f) !== null`; `f.sz` for a dir is `st_size` (`httpcli.py:7506`,
+                ~4096) unless the `ds` lookup filled it, and that lookup assigns `sz` and
+                `.files` in one tuple (`:7635`, inside the `try` at `:7633-7637`), so
+                `nfiles()` is the predicate. `cfg.idx` is **not** — it is true on a
+                `nodirsz` volume, where `sz` is still 4096
               - the back row (`:265-272`) keeps its `parent folder` subline, but wrapped
                 in `<span class="nu_n">` so it cannot land in a column, and the row gains
                 a `nu_back` class for its placement rule
@@ -331,14 +384,22 @@ commits:
      do:      - at `>= 64em`: `.nu_meat` and `.nu_sub` both take `display: contents` —
                 **two** levels, not one (`nu.css:341-344` is only the first); `.nu_n`
                 hidden, `.nu_w` shown
+              - **and `.nu_sub > * + *::before { content: none }` in the same block.**
+                `display: contents` drops the box, not the selector: leave the rule
+                standing and every column but the first renders `· 1.2 GB` inside its
+                own track
               - `.nu_row { display: grid; grid-template-columns: var(--nu-cols); }` with
                 `--nu-cols` declared once per band using **named lines**:
                 `[chip] 42px [name] minmax(0,1fr) [sz] 7em [dt] 10em [go] 1em`, and at
                 `>= 80em` the same with `[ty] 7em` before `[dt]`
-              - every cell placed by name (`grid-column: name` / `sz` / `dt` / `ty` /
-                `go`), never by order — files have no `.nu_go` (`nu.js:291`) and an
-                unindexed folder has no size cell, so ordinal placement breaks on the
-                second row it meets. `.nu_back .nu_name` spans `name / go`
+              - every cell placed by name — `.nu_type` on `chip`, then `name`, `sz`,
+                `dt`, `ty`, `go` — never by order: files have no `.nu_go` (`nu.js:291`),
+                an unindexed folder has no size cell and a dir has no type cell, so
+                ordinal placement breaks on the second row it meets. `.nu_back .nu_name`
+                spans `name / go`
+              - the tracks are not the whole geometry: `.nu_row`'s `gap: 14px` and its
+                `--row-pad` inline padding (`nu.css:306-307`) shift every column, so
+                whatever the header does in Card 3 it must copy those two as well
               - **no `auto` track anywhere**: each row is its own grid, so a
                 content-sized track means the columns stop lining up between rows
               - `.nu_empty` (`nu.css:373-378`) is untouched — it is a child of
@@ -347,10 +408,13 @@ done when:     suite green, no `.py` in the diff, and **the character-for-charac
                check** at 390×844 on both an `-e2dsa` and a plain volume: a file row
                reads `<size> · <date>`, an indexed folder row `<n> items · <date>`, and
                an **unindexed** folder row the bare date with no leading separator —
-               identical to what `c358efcb` renders for the same listing (screenshot
-               diff, or read the two side by side). At 1440×900 the same rows are four
-               aligned columns; at 1100×900 the Type column is gone and the other three
-               still line up between a file row, a folder row and the back row
+               identical to what `b79cc1c8` renders for the same listing (screenshot
+               diff, or read the two side by side). At 1440×900 — which is `90em`, above
+               the `80em` step — the same rows are chip, Name, Size, Type, Date and
+               chevron, aligned down the page, and **no `·` appears inside any column**;
+               at 1100×900 (`68.75em`) the Type column is gone and the remaining columns
+               still line up across a file row, an indexed folder row, an unindexed
+               folder row and the back row
 
 ### Card 3 — The column header, as a second door to the existing sort
 precondition:  Card 2 landed — the cells exist and `--nu-cols` is the one definition of
@@ -361,13 +425,20 @@ read for why:  spec §D4's last two bullets (why the header is not inside `#nu_l
 commits:
   1. nu: add the column header outside the aria-live region
      touches: copyparty/web/nu.html, copyparty/web/nu.css
-     do:      - `<div id="nu_head" hidden></div>` inside `#nu_main`, **before**
-                `#nu_list` — never inside it: `#nu_list` carries `aria-live="polite"`
-                (`nu.html:44`), so a header living there is re-announced on every sort
-                and every keystroke in the filter
-              - it uses the same `var(--nu-cols)` grid and the same named-line
-                placement, which is the only reason the header lines up with rows that
-                are each their own grid
+     do:      - `<div id="nu_head"></div>` inside `#nu_main`, **before** `#nu_list` —
+                never inside it: `#nu_list` carries `aria-live="polite"` (`nu.html:43`),
+                so a header living there is re-announced on every sort and every
+                keystroke in the filter
+              - **no `hidden` attribute** — `display: none` in the base band and
+                `display: grid` at `>= 64em`, one mechanism in one file. `hidden` is a
+                UA `display: none` that the band rule then has to out-specify; it works
+                from an id and breaks silently the day the rule moves to a class.
+                (`#nu_tree` keeps its `hidden`, because JS owns it, not a band.)
+              - it uses the same `var(--nu-cols)` grid, the same named-line placement,
+                **and the same `gap` and inline padding as `.nu_row`** — all three, or a
+                header that shares only the tracks sits 16px off at the left edge and
+                drifts 14px more per column. That is the only reason it lines up with
+                rows that are each their own grid
               - visible only at `>= 64em`; the middle and narrow bands keep the status
                 line's sort button as their door
   2. nu: make a header click a second trigger for pick_sort()
@@ -375,6 +446,10 @@ commits:
      do:      - build the header's buttons **once at boot** from `SORTS`
                 (`nu.js:131-137`), reusing its labels — `Name`, `Size`, `Type`, `Date` —
                 so the header adds no i18n keys of its own
+              - `SORTS` has a fifth key, `n` / `Items` (`:136`), and it gets **no**
+                button: there is no Items column for it to sit over, and a fifth cell
+                in a header that shares `--nu-cols` with the rows puts every column one
+                track out. `n` stays a sheet-only sort, at every width
               - a click calls the existing `pick_sort(k)` (`nu.js:350-361`) with the
                 same keys, including its natural-direction rule (`SORTS[a][3]`). No
                 second comparator, no second state
@@ -388,10 +463,12 @@ commits:
 done when:     suite green, no `.py` in the diff, and at 1440×900: clicking `Size` sorts
                and clicking it again reverses; opening the sort sheet immediately after
                shows the **same** key and the **same** direction highlighted; picking
-               `Date` in the sheet moves the header's arrow without a second click; a
-               screen reader (or the accessibility tree in devtools) announces the
-               listing once per sort, not twice; and typing in the filter with a header
-               button focused does not steal the focus
+               `Date` in the sheet moves the header's arrow without a second click;
+               `ebi("nu_list").contains(ebi("nu_head"))` is `false`, so the header is
+               outside the `aria-live` region and a sort announces the listing once;
+               and with a header button focused, typing five characters into the filter
+               leaves `document.activeElement` that same button (the debounced `draw()`
+               has run, and `render_head()` did not rewrite the container)
 
 ### Card 4 — The tree widget, and its dock
 precondition:  Cards 1-3 landed — `#nu_tree`, `CAP`, `t()`/`STR`
@@ -415,8 +492,9 @@ commits:
                 `:6161`), so `my vol` arrives as `my%20vol`; an unreachable sub-volume
                 gets a `"\n"` appended *before* quoting (`:6160-6161`), so it arrives as
                 `gone%0A`. Classic tests the still-encoded string
-                (`browser.js:7901`, `ded = ks.endsWith('\n')`) and therefore never
-                matches — do **not** copy that line
+                (`browser.js:7922`, `ded = ks.endsWith('\n')`, on a value it only
+                decodes at `:7923`) and therefore never matches — do **not** copy that
+                line
               - **split the dirkey before decoding.** With the `dk` volflag the key is
                 appended inside the same string (`name?k=kF73qdt_`, `httpcli.py:6141`);
                 split at `?`, decode the name, carry the key into the href *and* into
@@ -447,6 +525,12 @@ commits:
               - the dock fetches when it **first becomes visible**, not at boot: a phone
                 that never widens must not pay a `?tree=` roundtrip. Subscribe to
                 `CAP.on("wide", ...)` from Card 1 and load once, guarded by a loaded flag
+              - the same function that un-hides `#nu_tree` writes `data-tree="1"` on
+                `#nu_shell`, and nothing else ever writes it. That attribute is what
+                opens the `16em` track (Card 1 commit 2), so the column and its contents
+                appear in the same frame and every path that does not render a dock —
+                `ui_notree`, a window that never widens, a failed `?tree=` — leaves one
+                column and no gutter
               - the tree's strings (`Folders`, the unreachable node's title) go into
                 `STR` via `t()`
   3. nu: bind cgv1 and honor the admin's ui_notree
@@ -473,8 +557,9 @@ done when:     suite green, no `.py` in the diff, and each wire quirk observed a
                removed after startup renders as one disabled node with no stray line
                break; expanding a branch costs **exactly one** request in devtools and
                expanding it again costs none; with `--ui-notree` the dock does not render
-               at 1600px and devtools records **zero** `?tree=` requests; and at 390×844
-               the page still issues no `?tree=` at all
+               at 1600px, `#nu_shell` carries no `data-tree` and resolves to **one**
+               track with no empty gutter, and devtools records **zero** `?tree=`
+               requests; and at 390×844 the page still issues no `?tree=` at all
 
 ### Card 5 — Desktop input on the surfaces that exist
 precondition:  Card 4 landed — `CAP`, `srvcfg`, `--hov` / `--ring`
@@ -485,8 +570,9 @@ commits:
   1. nu: give the row a hover fill and a visible focus ring
      touches: copyparty/web/nu.css
      do:      - `.nu_row:hover` on `--hov` inside `(hover: hover) and (pointer: fine)`,
-                left of the existing `:active` rule on `--sel` (`nu.css:314-316`) so the
-                pressed state still wins
+                declared **above** the existing `:active` rule on `--sel`
+                (`nu.css:314-316`) — equal specificity, so source order is what keeps the
+                pressed state winning
               - `:focus-visible` on `.nu_row`, the chips, the sort button and the header
                 buttons using `--ring`; `#nu_q` sets `outline: none` today (`:229`) and
                 gets a real ring back
@@ -498,10 +584,15 @@ commits:
                 elements (they are `<a href>` and already focusable), `Home`/`End` jump,
                 `Enter` is the browser's own and needs no handler, `Escape` keeps closing
                 the sheet and now also the context menu
-              - **the typing guard first**, copied in shape from
-                `browser.js:6237-6238`: ignore the event when the target is an input,
-                textarea or select, or is `isContentEditable` — without it the arrows
-                fight `#nu_q` (`nu.html:31`)
+              - **the typing guard first.** Classic reads the active element the same
+                way (`browser.js:6237-6238`, `ae = document.activeElement` and its
+                lower-cased `nodeName`) but then guards on `aet == 'input'` alone
+                (`:6306-6307`, and a nodeName allowlist at `:6359-6360`);
+                `isContentEditable` appears nowhere under `copyparty/web/`. `nu`'s guard
+                is deliberately wider than the one it is modeled on — bail on `input`,
+                `textarea`, `select` or `isContentEditable` — because the extra branches
+                cost nothing and a textarea eats arrow keys exactly like `#nu_q`
+                (`nu.html:30`) does
               - focus follows navigation only; **no selection state is created here** —
                 click / shift-click / ctrl-click land with 0001 Card 5 (spec §D5)
   3. nu: add the right-click context menu as a declarative table
@@ -541,7 +632,7 @@ commits:
   1. nu: reflow the header for the wide band
      touches: copyparty/web/nu.css
      do:      - at `>= 64em` the header's four stacked bands (`#nu_nav`, `#nu_srch`,
-                `#nu_chips`, `#nu_stat`, `nu.html:18-40`) become two rows: nav + search
+                `#nu_chips`, `#nu_stat`, `nu.html:18-39`) become two rows: nav + search
                 on one, chips + status on the other, with the search box no longer
                 full-bleed. Same DOM, same ids, a different grid — one markup
               - the chips stay (decision above); the status line keeps its sort button
@@ -550,7 +641,8 @@ commits:
   2. nu: declare the wide toolbar slot for 0001's action bar
      touches: copyparty/web/nu.html, copyparty/web/nu.css
      do:      - `<span id="nu_tools"></span>` inside `#nu_stat`'s `#nu_acts`
-                (`nu.html:37-38`), empty and inert, with its wide placement styled
+                (`nu.html:38`, beside the existing `#nu_sort` button), empty and inert,
+                with its wide placement styled
               - a comment naming its contract: 0001 Card 1 renders **the same** bar
                 component into `#nu_tools` at `>= 64em` and into the fixed bottom bar
                 below it — not a second bar with its own strings (spec §D5)
@@ -565,9 +657,11 @@ commits:
 done when:     suite green, no `.py` in the diff, and at 1440×900 the header is two rows
                with the search box no longer full-bleed while the chips still filter and
                the status line's sort button still opens the sheet; at 800×900 and
-               390×844 the header is unchanged from `c358efcb`; `#nu_tools` renders
-               nothing and occupies no space; and `docs/nu-ui.md` describes the tree as
-               it is after Card 5
+               390×844 the header is unchanged from `b79cc1c8`; `#nu_tools` is in the DOM
+               with `getBoundingClientRect().width === 0`; and `docs/nu-ui.md`'s
+               `## widths` section names all four things this plan built (dock, columns,
+               header sort, desktop input) and all five it did not (selection, the action
+               bar's wide placement, the keyboard map, drag & drop, mtp tag columns)
 
 ## What 0002 obliges 0001 to honor — declared, not edited
 
@@ -583,11 +677,11 @@ so that re-plan is a diff and not a rewrite.
 | **2** — preferences and settings | The density toggle writes `data-dens="touch"` / `"compact"` on `documentElement` and **never restyles `.nu_row`** — 0002 owns `--row-pad` and the wide compact default (Card 1 commit 3). The settings screen is a centered panel at `>= 64em`, not a full-bleed sheet. The dotfiles toggle must also re-issue the tree's `?tree=&dots` through 0002's `tree_load()`, because the tree reads the query param and not the cookie. |
 | **3** — grid + thumbnails | A wide tile size (114px is a phone tile), tiles filling the capped `100em` content column. The grid renderer stays the **single** sanctioned second renderer (spec §D1) and must not introduce a second *row* markup. |
 | **4** — tree sheet | The widget is gone from this card: 0002 Card 4 built `tree_load()` / `render_tree(el)`. Card 4 builds **only** the sheet wrapper, passes the sheet's container to `render_tree()`, and is scoped to `< 64em` — and must not re-fetch what the dock already loaded. Its current commit 1 says "if 0002's tree widget has already landed, this commit builds the sheet wrapper and nothing else" (`0001:497-501`); that branch is now the only one. |
-| **5** — selection | The checkbox is a **permanent column** at `>= 64em`, a new named line in `--nu-cols` — never a hover reveal. Long-press is installed only under `CAP.coarse`. Shift-click and ctrl/cmd-click act on the **checkbox**, extending and toggling the range (`msel.seltgl`, `browser.js:8827-8858`), never on the row: the row is an `<a href>` and a plain click must still navigate. The selection action bar uses `#nu_tools` at width. |
+| **5** — selection | The checkbox is a **permanent column** at `>= 64em`, a new named line in `--nu-cols` — never a hover reveal. Long-press is installed only under `CAP.coarse`. Shift-click and ctrl/cmd-click act on the **checkbox**, extending and toggling the range (`msel.seltgl`, `browser.js:8827-8868`), never on the row: the row is an `<a href>` and a plain click must still navigate. The selection action bar uses `#nu_tools` at width. |
 | **6** — swipe + pull-to-refresh | Both installed only under `CAP.coarse`, from JS, with the `onchange` re-bind — not hidden by CSS. The wide equivalent of the swipe's actions is a **row added to 0002's `CTX` table**, not a second menu. |
 | **7** — image viewer | At `>= 64em` the viewer is a bounded image with its actions in a bar, prev/next on the arrow keys — and it must declare who owns `keydown` while it is open, because 0002 Card 5 put list traversal on the same document-level listener. |
 | **8** — recursive search | No width dependency, but the result list renders through the **field-split row** (0002 Card 2), not a third row markup. |
-| **plan-level** | Every card's manual check reads "at 390×844" (`0001:98`) and names no other viewport. Each becomes "at 390×844 **and** 1440×900". |
+| **plan-level** | 0001's gate rule names one viewport for the whole plan — "a named, falsifiable manual check **at 390×844**" (`0001:252`) — and no card names another. It becomes "at 390×844 **and** 1440×900", card by card. |
 
 Ordering, restated because it is mechanical and not a preference: 0001 and 0002 both
 edit `nu.js`, `nu.css` and `nu.html` in every card, so they cannot run in parallel.
@@ -610,25 +704,30 @@ Run after Card 6, as the whole-plan check.
 - **Nothing is hover-only.** With a finger at 1400px every action reachable by hover is
   still reachable by a visible control.
 - **The admin's switches reach `nu`.** A two-run diff: with `--ui-notree` no dock at
-  1600px and zero `?tree=`; with `--ui-noctxb` right-click falls through to the browser
-  menu. Both default off.
+  1600px, zero `?tree=`, and a shell that is **one** column — a suppressed dock leaves
+  no empty gutter; with `--ui-noctxb` right-click falls through to the browser menu.
+  Both default off.
+- **The separators stay in the narrow band.** At 1440×900 no column cell begins with
+  `·`: the `::before` chain is cancelled where `.nu_sub` goes `display: contents`, which
+  is the one rule that does not announce itself when it is missing.
 - **The columns say something true.** On an unindexed volume a folder's Size cell is
   **empty**, never `4.0 KB`; on an `-e2dsa` volume it is the recursive size; on an
   `-e2dsa` volume carrying `nodirsz` it is empty again, which `cfg.idx` alone would have
   got wrong. The Date column distinguishes two files a year apart to the day.
 - **Mobile does not regress.** At 390×844 the meta line is character-for-character what
-  `c358efcb` renders — `<size> · <date>`, `<n> items · <date>`, and a bare date with **no
+  `b79cc1c8` renders — `<size> · <date>`, `<n> items · <date>`, and a bare date with **no
   leading separator** on an unindexed volume — even though the JS now emits those pieces
   as separate nodes.
-- **No server drift.** `git diff c358efcb..HEAD` touches no `.py` file and adds no file
+- **No server drift.** `git diff b79cc1c8..HEAD` touches no `.py` file and adds no file
   under `web/`; the only files modified are `copyparty/web/nu.{js,css,html}` and
-  `docs/`. A new file under `web/` would also need `RES`
-  (`copyparty/__init__.py:101-103`) and `scripts/sfx.ls:105-107` — which is the reason
-  not to add one.
+  `docs/`. A new file under `web/` would also need a row in the manifest that `RES` is
+  built from (`copyparty/__init__.py:65-143`; `nu.css`/`nu.html`/`nu.js` are `:101-103`,
+  `RES = set(...)` is `:143`) and a row in `scripts/sfx.ls`'s own alphabetical list
+  (`nu.*` at `:105-107`) — which is the reason not to add one.
 - **The classic UI is untouched.** `?b` reaches the basic browser, `?nu0` escapes, the
   `classic` link still unpins the `ui=nu` cookie, and no file under `copyparty/web/`
   other than `nu.*` appears in the diff.
-- **Suite:** `python3 -m unittest discover -s tests` green — 31 tests, as at `c358efcb`.
+- **Suite:** `python3 -m unittest discover -s tests` green — 31 tests, as at `b79cc1c8`.
   A regression guard, not evidence the work is right.
 
 ## Follow-ups this plan deliberately does not take
