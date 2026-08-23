@@ -168,6 +168,84 @@ function unpin() {
 	xhr.send();
 }
 
+// -- capability and width ----------------------------------------------
+//
+// width decides layout, capability decides interaction, and they are
+// different questions: a 1024px touch tablet and a 1024px desktop window are
+// the same layout and emphatically not the same input.
+//
+// these are read here in JS and not only in CSS because a CSS-only gate
+// hides the affordance while leaving the listener attached -- a long-press
+// handler installed for a mouse is the bug this exists to prevent.
+//
+// deliberately NOT util.js's TOUCH ('ontouchstart' in window): that is a
+// device fact, true on every hybrid laptop, which is precisely the machine
+// this is for. nu never loads util.js anyway.
+//
+// every query is re-read on change, the way util.js:586-594 re-reads
+// prefers-reduced-motion; a capability latched once at boot is wrong on any
+// device that changes input mode (a tablet gaining a keyboard, devtools
+// emulation, a window dragged to another screen).
+
+var CAP = (function () {
+	var defs = {
+		coarse: "(pointer: coarse)",
+		fine: "(hover: hover) and (pointer: fine)",
+		wide: "(min-width: 64em)"
+	},
+		subs = {},
+		r = {
+			// CAP.on("coarse", fn) -- fn(matches, name) on every flip
+			on: function (name, fn) {
+				(subs[name] = subs[name] || []).push(fn);
+			}
+		};
+
+	function fire(name, val) {
+		var cbs = subs[name] || [];
+		for (var a = 0; a < cbs.length; a++)
+			try { cbs[a](val, name); }
+			catch (ex) { }
+	}
+
+	for (var k in defs) {
+		// false is the safe default everywhere: no matchMedia means no
+		// gesture handlers and no wide behavior, never the reverse
+		r[k] = false;
+		try {
+			// the closure has to capture the key -- with no `let`, a bare
+			// `k` would read the loop's last value when onchange fires
+			(function (name, mq) {
+				r[name] = mq.matches;
+				mq.onchange = function () {
+					r[name] = mq.matches;
+					fire(name, mq.matches);
+				};
+			})(k, window.matchMedia(defs[k]));
+		}
+		catch (ex) { }
+	}
+
+	return r;
+})();
+
+// the tree dock sticks below the header, so CSS needs the header's real
+// height; --head-h carries an 8.5em fallback until this writes a px value,
+// and the header reflows whenever a folder name wraps #nu_nav.
+function watch_head() {
+	var top = ebi("nu_top");
+	if (!top || !window.ResizeObserver)
+		return;
+
+	new ResizeObserver(function () {
+		try {
+			document.documentElement.style.setProperty(
+				"--head-h", top.offsetHeight + "px");
+		}
+		catch (ex) { }
+	}).observe(top);
+}
+
 // -- sorting and filtering ---------------------------------------------
 
 var dir1st = true;
@@ -398,6 +476,8 @@ function fetch_ls(vpath, cb) {
 			document.documentElement.setAttribute("data-thm", t);
 	}
 	catch (ex) { }
+
+	watch_head();
 
 	if (cfg && cfg.dsort)
 		for (var a = 0; a < SORTS.length; a++)

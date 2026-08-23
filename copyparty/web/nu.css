@@ -18,6 +18,10 @@
 	--fg4: #a3a7b0;
 	--chev: #c3c6ce;
 	--sel: #f0edf9;
+	/* --sel is the :active / selected fill; hover is a weaker, separate
+	   state and must not borrow it, or a mouseover reads as a selection */
+	--hov: #f2f2f6;
+	--ring: oklch(0.58 0.17 300);
 
 	--t-dir-bg: #e9e6f5;
 	--t-any-bg: #e6e7ec;
@@ -61,6 +65,8 @@
 		--fg4: #6a6f7a;
 		--chev: #4b505a;
 		--sel: #241f33;
+		--hov: #1d1e24;
+		--ring: oklch(0.78 0.15 300);
 		--head-bg: rgba(15, 16, 19, .92);
 		--foot-bg: rgba(15, 16, 19, .94);
 		--accent: oklch(0.72 0.12 300);
@@ -92,6 +98,8 @@
 	--fg4: #6a6f7a;
 	--chev: #4b505a;
 	--sel: #241f33;
+	--hov: #1d1e24;
+	--ring: oklch(0.78 0.15 300);
 	--head-bg: rgba(15, 16, 19, .92);
 	--foot-bg: rgba(15, 16, 19, .94);
 	--accent: oklch(0.72 0.12 300);
@@ -309,7 +317,9 @@ a {
 	display: flex;
 	align-items: center;
 	gap: 14px;
-	padding: 14px 16px;
+	/* 14px 16px is the touch row: a 44px target, a finger constraint. the
+	   wide band swaps in the handoff's compact metric through --row-pad. */
+	padding: var(--row-pad, 14px 16px);
 	background: var(--surface);
 	border-bottom: 1px solid var(--line-soft);
 	width: 100%;
@@ -318,6 +328,14 @@ a {
 
 .nu_row:active {
 	background: var(--sel);
+}
+
+/* the density opt-out. the wide band sets --row-pad on :root inside a media
+   query, and a media query adds no specificity -- so this attribute rule
+   outranks it wherever it appears, and the settings toggle that will drive
+   it only ever has to write the attribute. */
+:root[data-dens="touch"] {
+	--row-pad: 14px 16px;
 }
 
 .nu_type {
@@ -439,6 +457,17 @@ a {
 	transform: translateY(0);
 }
 
+/* the house guard, same as ui.css:641 and browser.css:3326. it lives after
+   the transitions it cancels and the width bands never re-declare them, so
+   this holds in every band. */
+@media (prefers-reduced-motion) {
+
+	#nu_veil,
+	#nu_sheet {
+		transition: none;
+	}
+}
+
 .nu_grip {
 	width: 38px;
 	height: 4px;
@@ -551,6 +580,15 @@ a {
    the tree docks outside that cap. #nu_shell is an unstyled block below this
    query, so the middle band's centering of #nu_main is untouched. */
 @media (min-width: 64em) {
+
+	/* the wide band defaults to the compact row -- the handoff's metric at
+	   `copyparty mobile.dc.html:496`. 44px touch targets are a finger
+	   constraint; a mouse just pays for them in rows-per-screen.
+	   :root[data-dens="touch"] above overrides this on specificity. */
+	:root {
+		--row-pad: 9px 16px;
+	}
+
 	#nu_shell {
 		display: grid;
 		grid-template-columns: minmax(0, 100em);
