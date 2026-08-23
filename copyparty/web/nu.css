@@ -653,4 +653,94 @@ a {
 	#nu_sheet.on {
 		transform: translate(-50%, 0);
 	}
+
+	/* ---- the row becomes the grid ----
+
+	   the grid goes on .nu_row, not on #nu_list: rows are <a> elements
+	   carrying the background, the bottom border and (soon) hover and
+	   focus, and display:contents on them would destroy all four. so every
+	   row is its own grid and #nu_list stays a plain block -- which is
+	   also why .nu_empty needs no placement, it is not a grid item.
+
+	   the price is that columns line up across rows only if no track is
+	   content-sized: NO `auto` ANYWHERE. minmax(0, 1fr) for the name,
+	   fixed em for the rest, and the whole declaration lives in --nu-cols
+	   so the column header has one definition to copy rather than a second
+	   truth. --nu-cols is not the whole geometry either: .nu_row's
+	   `gap: 14px` and its --row-pad inline padding move every track, so
+	   anything aligning to these columns has to copy those two as well. */
+	:root {
+		--nu-cols: [chip] 42px [name] minmax(0, 1fr) [sz] 7em [dt] 10em [go] 1em;
+	}
+
+	.nu_row {
+		display: grid;
+		grid-template-columns: var(--nu-cols);
+	}
+
+	/* two levels, not one. .nu_meat wraps the name and the meta line, and
+	   .nu_sub wraps the cells inside that -- flatten only the outer one and
+	   all three cells land in a single track. */
+	.nu_meat,
+	.nu_sub {
+		display: contents;
+	}
+
+	/* display:contents drops the box, not the selector: leave the meta
+	   line's separator standing and every column but the first renders
+	   "· 1.2 GB" inside its own track. */
+	.nu_sub > * + *::before {
+		content: none;
+	}
+
+	.nu_n {
+		display: none;
+	}
+
+	.nu_w {
+		display: inline;
+	}
+
+	/* every cell placed by name, never by order: a file has no .nu_go, an
+	   unindexed folder has no size cell and a folder has no type cell, so
+	   ordinal placement breaks on the second row it meets. */
+	.nu_type {
+		grid-column: chip;
+	}
+
+	.nu_name {
+		grid-column: name;
+	}
+
+	.nu_c_sz {
+		grid-column: sz;
+	}
+
+	.nu_c_dt {
+		grid-column: dt;
+	}
+
+	.nu_c_ty {
+		grid-column: ty;
+	}
+
+	.nu_go {
+		grid-column: go;
+	}
+
+	/* the back row has no fields; its name takes the whole span up to the
+	   chevron rather than leaving three empty columns behind it. */
+	.nu_back .nu_name {
+		grid-column: name / go;
+	}
+}
+
+/* the full column set. below this the type column sheds -- see .nu_c_ty
+   above -- so `ty` is the only line that is not in every band, and the only
+   rule naming it is on a cell that is display:none wherever the line is
+   missing. */
+@media (min-width: 80em) {
+	:root {
+		--nu-cols: [chip] 42px [name] minmax(0, 1fr) [sz] 7em [ty] 7em [dt] 10em [go] 1em;
+	}
 }
