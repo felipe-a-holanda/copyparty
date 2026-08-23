@@ -341,12 +341,65 @@ function render_stat(shown) {
 	var word = n == 1 ? " item" : " items";
 	ebi("nu_count").textContent = n + word + (sz ? " · " + humansize(sz) : "");
 
-	var lab = "Name";
-	for (var a = 0; a < SORTS.length; a++)
-		if (SORTS[a][0] == ST.sortKey)
-			lab = SORTS[a][1];
+	ebi("nu_sort").textContent = sort_label(ST.sortKey) + " " +
+		(ST.sortDir > 0 ? "↑" : "↓");
+}
 
-	ebi("nu_sort").textContent = lab + " " + (ST.sortDir > 0 ? "↑" : "↓");
+function sort_label(k) {
+	for (var a = 0; a < SORTS.length; a++)
+		if (SORTS[a][0] == k)
+			return SORTS[a][1];
+
+	return k;
+}
+
+// -- the column header -------------------------------------------------
+//
+// the wide band's sort control, and not a second sort: a click lands in the
+// same pick_sort() the sheet uses, with the same keys and the same
+// natural-direction rule. the labels are SORTS' own, so the header adds no
+// string of its own to translate.
+//
+// SORTS' fifth key -- `n` / Items -- deliberately gets no button: there is
+// no Items column for it to sit over, and a fifth cell in a header sharing
+// --nu-cols with the rows would push every column one track out. `n` stays
+// a sheet-only sort, at every width.
+//
+// [sort key, grid line]. the key is not always the line name (`ts` labels
+// the `dt` column, `ext` the `ty` one), and dom order is free because
+// placement is by name -- so this is written in the human column order.
+var HEADS = [
+	["name", "name"],
+	["sz", "sz"],
+	["ext", "ty"],
+	["ts", "dt"]
+];
+
+// built once, at boot. render_head() then only ever writes textContent and
+// aria-sort on these same nodes -- it must never rewrite the container,
+// because draw() runs on the filter's 90ms debounce and an innerHTML here
+// would destroy the focused header button under the user's fingers.
+function build_head() {
+	var h = [];
+	for (var a = 0; a < HEADS.length; a++)
+		h.push('<button type="button" class="nu_hcol nu_h_' + HEADS[a][1] +
+			'" data-k="' + HEADS[a][0] + '"></button>');
+
+	ebi("nu_head").innerHTML = h.join("");
+}
+
+function render_head() {
+	var els = ebi("nu_head").children;
+	for (var a = 0; a < els.length; a++) {
+		var el = els[a],
+			k = el.getAttribute("data-k"),
+			on = k == ST.sortKey,
+			up = ST.sortDir > 0;
+
+		el.textContent = sort_label(k) + (on ? (up ? " ↑" : " ↓") : "");
+		el.setAttribute("aria-sort", !on ? "none" :
+			up ? "ascending" : "descending");
+	}
 }
 
 // -- the row's meta fields ---------------------------------------------
@@ -439,6 +492,10 @@ function render_list(shown) {
 function draw() {
 	var shown = filtered();
 	render_stat(shown);
+	// beside render_stat, and NOT bolted into pick_sort(): the arrow is
+	// state, and repainting it in the draw cycle is what keeps the header
+	// and the sheet from drifting out of agreement.
+	render_head();
 	render_list(shown);
 }
 
@@ -573,6 +630,12 @@ function fetch_ls(vpath, cb) {
 		qt = setTimeout(function () { ST.q = v; draw(); }, 90);
 	};
 
+	ebi("nu_head").onclick = function (e) {
+		var b = e.target.closest(".nu_hcol");
+		if (b)
+			pick_sort(b.getAttribute("data-k"));
+	};
+
 	ebi("nu_sort").onclick = function () { sheet(!ST.sheet); };
 	ebi("nu_veil").onclick = function () { sheet(false); };
 	ebi("nu_sopts").onclick = function (e) {
@@ -587,6 +650,7 @@ function fetch_ls(vpath, cb) {
 	});
 
 	render_chips();
+	build_head();
 
 	if (ls0)
 		return take(ls0);
