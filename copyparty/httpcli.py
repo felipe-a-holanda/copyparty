@@ -7339,6 +7339,7 @@ class HttpCli(object):
             "have_tags_idx": int(e2t),
             "have_b_u": (self.can_write and self.uparam.get("b") == "u"),
             "sb_lg": vn.js_ls["sb_lg"],
+            "cfg": vn.js_ls,
             "url_suf": url_suf,
             "title": html_escape("%s %s" % (self.args.bname, self.vpath), crlf=True),
             "srv_info": srv_infot,

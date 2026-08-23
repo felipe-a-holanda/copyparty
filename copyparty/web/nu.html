@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8">
 	<title>{{ title }}</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta name="theme-color" content="#{{ tcolor }}">
 	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/w/nu.css?_={{ ts }}">
 {{ html_head }}
@@ -15,15 +15,27 @@
 
 <body>
 	<header id="nu_top">
-		<nav id="nu_crumbs">
-			{%- for n in vpnodes %}
-			<a href="{{ r }}/{{ n[0] }}">{{ n[1] }}</a>
-			{%- endfor %}
-		</nav>
-		<div id="nu_tools">
-			<button id="nu_pin" type="button" title="make default">☆</button>
-			<button id="nu_thm" type="button" title="theme">◐</button>
-			<a id="nu_old" href="?nu0" rel="nofollow" title="open this folder in the classic UI">classic UI</a>
+		<div id="nu_nav">
+			{%- if vpnodes|length > 1 %}
+			<a id="nu_up" href="{{ r }}/{{ vpnodes[-2][0] }}"><span class="nu_chev">&lsaquo;</span><span id="nu_upn">{{ vpnodes[-2][1] }}</span></a>
+			{%- else %}
+			<a id="nu_up" class="nu_hidden" href="#"><span class="nu_chev">&lsaquo;</span><span id="nu_upn"></span></a>
+			{%- endif %}
+			<h1 id="nu_here">{{ vpnodes[-1][1] }}</h1>
+			<a id="nu_old" href="?nu0" rel="nofollow">classic</a>
+		</div>
+
+		<div id="nu_srch">
+			<span class="nu_ico">&#8981;</span>
+			<input id="nu_q" type="search" autocomplete="off" autocapitalize="off"
+				spellcheck="false" placeholder="Search in this folder">
+		</div>
+
+		<div id="nu_chips"></div>
+
+		<div id="nu_stat">
+			<span id="nu_count"></span>
+			<span id="nu_acts"><button id="nu_sort" type="button"></button></span>
 		</div>
 	</header>
 
@@ -31,9 +43,19 @@
 		<div id="nu_list" aria-live="polite"></div>
 	</main>
 
+	<div id="nu_veil" hidden></div>
+
+	<section id="nu_sheet" hidden aria-modal="true" role="dialog">
+		<div class="nu_grip"></div>
+		<div class="nu_shead">
+			<h2>Sort by</h2>
+			<span class="nu_hint">tap again to reverse</span>
+		</div>
+		<div id="nu_sopts"></div>
+	</section>
+
 	<footer id="nu_foot">
 		<span id="nu_srv">{{ srv_info }}</span>
-		<span id="nu_note"></span>
 	</footer>
 
 	<script nonce="{{ js_nonce }}">
@@ -45,6 +67,8 @@
 			taglist = {{ taglist|tojson }},
 			perms = {{ cgv.perms|tojson }},
 			acct = {{ cgv.acct|tojson }},
+			cfg = {{ cfg|tojson }},
+			vpnodes = {{ vpnodes|tojson }},
 			ls0 = {{ ls0|tojson }};
 	</script>
 	<script nonce="{{ js_nonce }}" src="{{ r }}/.cpr/w/nu.js?_={{ ts }}"></script>

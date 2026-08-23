@@ -37,11 +37,30 @@ in httpcli.py) and is listed in `ALL_COOKIES`, so "reset settings" clears it.
 | `web/nu.js` | listing render + mode plumbing |
 | `web/nu.css` | standalone -- does NOT load `ui.css`/`browser.css` |
 
+`nu.html` also receives `cfg` (the volume's `js_ls`: `idx`, `dnsort`, `dsort`,
+...), added to `j2a` in httpcli.py next to `sb_lg`.
+
 Static files under `web/` are only served if allowlisted in `RES`
 (`copyparty/__init__.py`), and only packed into the sfx if listed in
 `scripts/sfx.ls`. **Add new files to both.** The gzip step in `web/Makefile`
 globs `*.js *.css` at the root, so root-level names are picked up for free;
 a subdirectory would need a Makefile rule.
+
+## design
+
+The mobile redesign lives in `design-handoff/` (prototypes, token list,
+feature-coverage matrix). Type is the repo's own system stack, not the Geist
+the prototypes were drawn in; every other token is reproduced exactly.
+
+Built so far: the list and its rows, navigation, the sticky header (search,
+filter chips, status line) and the sort sheet. Search filters the current
+folder client-side; the server's recursive `POST /?srch` (which needs an
+indexed volume, `-e2d`) is not wired up yet.
+
+Not built, and therefore still reasons to reach for `classic UI`: selection
+mode, swipe actions, pull-to-refresh, grid view, the folder-tree sheet, the
+overflow menu, the settings screen and the image viewer. The header omits
+the controls that would drive them rather than showing dead buttons.
 
 ## data contract
 
@@ -55,15 +74,17 @@ and `dt()` -- keep it that way.
 Item shape: `{lead, href, name?, sz, ext, dt?, ts}` plus `tags` when the
 volume is indexed (`-e2t`).
 
-## what the skeleton does NOT do yet
+## what is NOT built yet
 
-Everything past listing and navigation, most importantly **upload**. The
+Most importantly **upload**. The
 classic `up2k.js` is not a library -- it drives ~47 specific element ids
 (`u2conf`, `u2cards`, `u2etaw`, `nthread`, ...) and reimplementing it means
 reimplementing chunked hashing, resume, and dedup (protocol in
 `docs/up2k.txt`). Until that is done, uploading is what the `classic UI`
 link is for.
 
-Also missing: search, the navpane tree, the media player, the markdown
-viewer/editor, thumbnails/gallery, the file manager (rename/move/delete),
-unpost, shares, and the settings pane.
+Also missing: recursive search, the navpane tree, the media player, the
+markdown viewer/editor, thumbnails/gallery, the file manager
+(rename/move/delete), unpost, shares, and the settings pane. The handoff's
+coverage matrix scores 38 classic-UI features: 9 covered by the design, 9
+partial, 11 still to design, 9 deliberately out of scope.
