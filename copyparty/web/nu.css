@@ -827,6 +827,75 @@ a {
 		--row-pad: 9px 16px;
 	}
 
+	/* ---- the header, two rows instead of four ----
+
+	   the phone stacks #nu_nav, #nu_srch, #nu_chips and #nu_stat as four
+	   full-bleed bands, which at 1440px is four short lines of chrome above
+	   the first file. same dom, same ids, same source order -- a two-column
+	   grid pairs them off instead: nav beside the search box on row one,
+	   the filter chips beside the status line on row two. nothing is moved
+	   in nu.html and nothing is hidden.
+
+	   the chips stay at width on purpose (a type column answers *what*, the
+	   chips answer *only these*), and the status line keeps #nu_sort at
+	   every width, so the sort sheet remains a door even here where the
+	   column header is a second one.
+
+	   the children's own inline padding differs per band (10/16/16/18px) --
+	   fine when each is its own full-bleed row, wrong the moment two of
+	   them share a row -- so the grid takes the inline padding and the
+	   children give theirs up. #nu_top's padding-top stays the
+	   safe-area-inset longhand it already is. */
+	#nu_top {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(14em, 26em);
+		align-items: center;
+		column-gap: 18px;
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+
+	#nu_nav {
+		grid-row: 1;
+		grid-column: 1;
+		padding: 0;
+	}
+
+	/* the folder name is centered between a back link and an escape hatch
+	   on a phone, where the row is 390px wide and the h1 is the row. given
+	   a 1fr track next to a search box it just floats; put it where a path
+	   belongs, against its own back link. */
+	#nu_here {
+		flex: 0 1 auto;
+		text-align: left;
+	}
+
+	#nu_old {
+		margin-left: auto;
+	}
+
+	/* no longer full-bleed: the search box is the second column, which is
+	   what stops a 1440px window from drawing a 1400px-wide pill. */
+	#nu_srch {
+		grid-row: 1;
+		grid-column: 2;
+		margin: 0;
+	}
+
+	#nu_chips {
+		grid-row: 2;
+		grid-column: 1;
+		padding: 8px 0;
+	}
+
+	/* space-between is kept from the base rule: the count sits under the
+	   search box's left edge and #nu_acts under its right. */
+	#nu_stat {
+		grid-row: 2;
+		grid-column: 2;
+		padding: 8px 0;
+	}
+
 	#nu_shell {
 		display: grid;
 		grid-template-columns: minmax(0, 100em);
