@@ -13,7 +13,7 @@ nasce na spec; o plano em `docs/plans/<NNNN>-<slug>.md` espelha o mesmo número.
 
 | Spec | Title | Status | Evidence in the code |
 |---|---|---|---|
-| [0001](0001-nu-the-rest-of-the-mobile-design.md) | The rest of the mobile design: nu beyond the base layer. A phone can browse, sort, select, move, delete, share and preview files in the new UI without ever falling back to the old one, and the settings it offers finally stick. | planejado | spec only. The base layer landed in `0affcaee`; the bottom bar, `...` menu, settings, grid, tree sheet, selection, swipe, viewer and recursive search do not exist yet. Upload is deferred to its own spec. |
+| [0001](0001-nu-the-rest-of-the-mobile-design.md) | The rest of the mobile design: nu beyond the base layer. A phone can browse, sort, select, move, delete, share and preview files in the new UI without ever falling back to the old one, and the settings it offers finally stick. | planejado | plan written, ready for `/exec docs/plans/0001-nu-the-rest-of-the-mobile-design.md`. The base layer landed in `0affcaee`; the eight cards that follow it are unbuilt. Upload is deferred to its own spec. |
 
 ## Recently landed
 
