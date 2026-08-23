@@ -70,6 +70,19 @@ function dt_short(f) {
 	return d.getDate() + " " + MON[d.getMonth()];
 }
 
+// the wide band's date column carries the year, and it has to be built here
+// rather than reformatted on resize: `?ls` strips `dt` (tx_ls in httpcli.py),
+// so after the first navigation `ts` is the only thing left to format from,
+// and a row may not be re-rendered when the window changes width.
+function dt_long(f) {
+	var t = ts_of(f);
+	if (!t)
+		return f.dt || "";
+
+	var d = new Date(t * 1000);
+	return d.getDate() + " " + MON[d.getMonth()] + " " + d.getFullYear();
+}
+
 var UNITS = ["B", "KB", "MB", "GB", "TB", "PB"];
 
 function humansize(n) {
@@ -336,16 +349,51 @@ function render_stat(shown) {
 	ebi("nu_sort").textContent = lab + " " + (ST.sortDir > 0 ? "↑" : "↓");
 }
 
+// -- the row's meta fields ---------------------------------------------
+//
+// the meta line used to be one concatenated string. a column cannot be a
+// substring, so each field is its own element now: narrow joins them with
+// a css separator (.nu_sub > * + *::before), wide lifts them into named
+// grid tracks. two rules keep both bands honest:
+//
+// * a cell with nothing to say is not emitted at all -- an empty span
+//   would still be a link in the separator chain, and an unindexed folder
+//   would render a leading "·" in front of its date;
+// * dom order is size, date, type. placement is by name, so the wide
+//   band's human order (name, size, type, date) is the grid's business --
+//   here type goes last because it is the cell that hides below 80em, and
+//   a hidden cell *between* two visible ones orphans a separator.
+
+function cell(cls, txt) {
+	return txt ? '<span class="' + cls + '">' + esc(txt) + '</span>' : "";
+}
+
+// a cell whose text differs per band ships both forms and lets css pick:
+// the resize contract forbids re-rendering a row to reformat it. one
+// element with two spans inside, never two bare siblings -- those would be
+// two boxes in one named track, and two links in the separator chain.
+function cell2(cls, n, w) {
+	if (!n && !w)
+		return "";
+
+	return '<span class="' + cls + '">' +
+		'<span class="nu_n">' + esc(n) + '</span>' +
+		'<span class="nu_w">' + esc(w) + '</span></span>';
+}
+
 function render_list(shown) {
 	var h = [];
 
-	// the design puts a "back" row at the top of every non-root folder
+	// the design puts a "back" row at the top of every non-root folder.
+	// its subline is prose, not a field, so it is wrapped narrow-only --
+	// otherwise the wide band would drop it into whichever column the
+	// grid felt like giving it.
 	if (vpnodes.length > 1) {
 		var up = vpnodes[vpnodes.length - 2];
-		h.push('<a class="nu_row nu_dir" href="' + esc(keep(SR + "/" + up[0])) + '">' +
+		h.push('<a class="nu_row nu_dir nu_back" href="' + esc(keep(SR + "/" + up[0])) + '">' +
 			'<span class="nu_type">DIR</span>' +
 			'<span class="nu_meat"><span class="nu_name">Back</span>' +
-			'<span class="nu_sub">parent folder</span></span>' +
+			'<span class="nu_sub"><span class="nu_n">parent folder</span></span></span>' +
 			'<span class="nu_go">›</span></a>');
 	}
 
@@ -355,9 +403,20 @@ function render_list(shown) {
 			k = kind_of(f),
 			txt = chip_text(f),
 			nf = d ? nfiles(f) : null,
-			sub = d
-				? (nf === null ? "" : nf + (nf == 1 ? " item · " : " items · ")) + dt_short(f)
-				: humansize(f.sz) + " · " + dt_short(f);
+			// a folder's recursive size and its file count are filled by
+			// one query in one tuple (httpcli.py, `select sz, nf from ds`),
+			// so nfiles() is the predicate for "this row's sz is real".
+			// cfg.idx is not: it is true on a nodirsz volume, where sz is
+			// still the 4096 of the directory inode.
+			sz = d
+				? (nf === null ? "" : cell2("nu_c_sz",
+					nf + (nf == 1 ? " item" : " items"), humansize(f.sz)))
+				: cell("nu_c_sz", humansize(f.sz)),
+			dt = cell2("nu_c_dt", dt_short(f), dt_long(f)),
+			// files only: a folder's ext is "---", so ext_of() would fall
+			// through to guessing from the name and label `my.backup` as
+			// a backup. a file with no extension gets no cell either.
+			ty = d ? "" : cell("nu_c_ty", ext_of(f));
 
 		h.push('<a class="nu_row ' + (d ? "nu_dir" : "nu_file") +
 			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
@@ -365,7 +424,7 @@ function render_list(shown) {
 			(txt.length > 3 ? " nu_long" : "") + '">' + txt + '</span>' +
 			'<span class="nu_meat">' +
 			'<span class="nu_name">' + esc(nm(f)) + '</span>' +
-			'<span class="nu_sub">' + esc(sub) + '</span></span>' +
+			'<span class="nu_sub">' + sz + dt + ty + '</span></span>' +
 			(d ? '<span class="nu_go">›</span>' : '') + '</a>');
 	}
 
