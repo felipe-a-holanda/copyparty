@@ -155,7 +155,11 @@ var ST = {
 	q: "",
 	sortKey: "name",
 	sortDir: 1,
-	sheet: false
+	sheet: false,
+	// the folder tree: `root` is one node (see tree_node), `expanded` is
+	// vpath -> bool, the open/closed state. a node's `kids` is the cache,
+	// so collapsing and reopening a branch costs no second request.
+	tree: { root: null, expanded: {} }
 };
 
 // -- mode plumbing -----------------------------------------------------
@@ -578,6 +582,216 @@ function fetch_ls(vpath, cb) {
 	};
 	xhr.onerror = function () { cb(new Error("network error"), null); };
 	xhr.send();
+}
+
+// -- the folder tree, as it comes off the wire -------------------------
+//
+// `?tree=` (gen_tree, httpcli.py:6088-6169) does not return display names,
+// and every quirk below is a bug if it is missed. the classic navpane's
+// reader (parsetree, browser.js:7901-7938) is the reference for the shape
+// -- but not for all of it: one of its lines is a live bug and is called
+// out where this file deliberately parts ways with it.
+//
+// the widget is width-agnostic; only its container is not. so nothing here
+// knows about the dock, and nothing here touches the dom.
+
+// the tree honours `dots` only as the query param ANDed with the udot
+// permission -- `self.uname in vn.axs.udot and "dots" in self.uparam`
+// (httpcli.py:6114). the *listing* additionally honours a cookie
+// (:7434-7436), which is the path nu's first paint takes, so these are not
+// one preference with two readers: the client's own preference has to ride
+// along on every single ?tree= request. `dots=y` is the cookie the classic
+// UI writes (setck, browser.js:6983) and nu has no toggle of its own yet;
+// for a user without udot the preference is a documented no-op here.
+function tree_dots() {
+	return /(^|;\s*)dots=y(;|$)/.test(document.cookie);
+}
+
+// `GET <dst>?tree=<top>[&dots][&k=<key>]` -- the same request shape the
+// classic navpane sends (browser.js:7220-7232).
+//
+// `top` must be "." or a prefix of the request path, or the server answers
+// 422 "arg funk" (httpcli.py:6068-6072). the blank form is NEVER sent:
+// when `is_vproxied` and `tree` is empty the reply is nested once per
+// component of args.R (:6077-6082), so a reader that takes the top-level
+// object as the root paints an empty tree on every reverse-proxied
+// deployment. "." always means "the folder this url points at", at every
+// depth and behind every prefix, so it is what expansion uses.
+//
+// `dst` must be a bare path -- the dirkey goes in `key`, because the
+// server reads it from its own `k` param (:6076) and a tree request without
+// it gets a different answer on a dk volume.
+function tree_load(top, dst, key, cb) {
+	var url = dst + (dst.indexOf("?") < 0 ? "?" : "&") + "tree=" + top +
+		(tree_dots() ? "&dots" : "") + (key ? "&k=" + key : "");
+
+	var xhr = new XMLHttpRequest();
+	xhr.open("GET", url, true);
+	xhr.responseType = "json";
+	xhr.onload = function () {
+		if (this.status !== 200)
+			return cb(new Error("HTTP " + this.status), null);
+
+		var r = this.response;
+		if (typeof r == "string")
+			try { r = JSON.parse(r); } catch (ex) { return cb(ex, null); }
+
+		cb(null, r && typeof r == "object" ? r : {});
+	};
+	xhr.onerror = function () { cb(new Error("network error"), null); };
+	xhr.send();
+}
+
+// merge `a` with the k* keys. gen_tree filters the expanded child out of
+// the sibling list -- `[x for x in dirs if x != excl]` (httpcli.py:6144,
+// and :6138 on the dirkey path) -- and hands it back only as
+// `ret["k" + quotep(excl)]` (:6094). so a reader that treats `a` as the
+// child list silently drops the folder the user is currently inside.
+//
+// returns `wirename -> subtree | null`, null meaning "not expanded".
+function tree_keys(res) {
+	var ret = {}, ks = res.a || [], a;
+
+	for (a = 0; a < ks.length; a++)
+		if (ks[a] !== "")
+			ret[ks[a]] = null;
+
+	// second, so an expanded child overwrites its own placeholder rather
+	// than appearing twice
+	for (var k in res)
+		if (k != "a" && k.charAt(0) == "k")
+			ret[k.slice(1)] = res[k];
+
+	return ret;
+}
+
+// one node of the tree.
+//
+//   name  decoded, for display
+//   vp    decoded vpath, no prefix and no slashes at either end -- the
+//         identity used by ST.tree.expanded and by the current-path match
+//   ev    the same path still encoded, for the href and the next request
+//   key   the dirkey, if this volume has one
+//   dead  the server cannot reach this sub-volume
+//   kids  child nodes, or null when this branch was never loaded
+function tree_node(raw, sub, base_ev, base_vp) {
+	// split the dirkey BEFORE decoding: with the `dk` volflag the key is
+	// appended inside the same string, `name?k=kF73qdt_`
+	// (httpcli.py:6141). quotep's safe set (util.py:2627) has no "?" in
+	// it, so a literal "?" in a folder name arrives as %3F and the first
+	// "?" is always the key's. dropping it as query junk would make the
+	// folder unreachable.
+	var m = /^([^?]*)(?:\?k=(.*))?$/.exec(raw) || ["", raw, ""],
+		ev = m[1],
+		key = m[2] || "",
+		name = ev;
+
+	// decode, THEN test. an unreachable sub-volume -- bos.stat fails, or
+	// the user holds none of read/write/html on it (httpcli.py:6152-6158)
+	// -- gets a "\n" appended at :6160 and is quoted with everything else
+	// at :6161, so it arrives as "gone%0A" and not as a trailing newline.
+	// classic tests the still-encoded string (browser.js:7922,
+	// `ded = ks.endsWith('\n')`, on a value it only decodes at :7923) and
+	// therefore never matches -- that line is not copied.
+	try { name = decodeURIComponent(ev); }
+	catch (ex) { }
+
+	var dead = name.slice(-1) == "\n";
+	if (dead) {
+		name = name.replace(/\n+$/, "");
+		ev = ev.replace(/(%0[Aa])+$/, "");
+	}
+
+	var vp = base_vp ? base_vp + "/" + name : name,
+		nev = base_ev ? base_ev + "/" + ev : ev;
+
+	if (sub)
+		ST.tree.expanded[vp] = true;
+
+	return {
+		name: name,
+		vp: vp,
+		ev: nev,
+		key: key,
+		dead: dead,
+		kids: sub ? tree_nodes(sub, nev, vp) : null
+	};
+}
+
+function tree_nodes(res, base_ev, base_vp) {
+	var keys = tree_keys(res),
+		ret = [];
+
+	for (var raw in keys)
+		ret.push(tree_node(raw, keys[raw], base_ev, base_vp));
+
+	// same collation as the listing's name sort, so the two agree
+	ret.sort(function (a, b) {
+		return a.name.localeCompare(b.name, undefined, {
+			numeric: !!(cfg && cfg.dnsort), sensitivity: "base"
+		});
+	});
+	return ret;
+}
+
+// the current folder, decoded, exactly as the server would spell it in
+// `self.vpath`: vpnodes carries the quotep'd path with the reverse-proxy
+// prefix already stripped, which is the half the server compares against.
+// vpnodes[i][1] is html-escaped for the template and must not be used as
+// a name.
+function tree_vp(i) {
+	var ev = (vpnodes[i] || ["", ""])[0].replace(/\/$/, "");
+	try { return [decodeURIComponent(ev), ev]; }
+	catch (ex) { return [ev, ev]; }
+}
+
+// the dirkey of the page we are on, if any
+function tree_pagekey() {
+	var m = /[?&]k=([^&#]*)/.exec(location.search);
+	return m ? m[1] : "";
+}
+
+// the first load asks for the whole chain down to the current folder in
+// ONE request, which is what the reply's k* keys are for: `top` is the
+// shallowest ancestor that is still a legal, non-empty `tree=` value --
+// the first path component -- and `dst` is the page's own url, so
+// gen_tree recurses from `top` to `vpath` and returns every level of it
+// already expanded. at the volume root there is no ancestor and no chain
+// to paint, so "." asks for the root's children directly.
+function tree_first(cb) {
+	var deep = vpnodes.length > 1,
+		root = tree_vp(deep ? 1 : 0),
+		here = tree_vp(vpnodes.length - 1),
+		top = deep ? root[1] : ".";
+
+	tree_load(top, location.pathname, tree_pagekey(), function (err, res) {
+		if (err)
+			return cb(err, null);
+
+		ST.tree.expanded[root[0]] = true;
+		cb(null, {
+			name: deep ? root[0] : "/",
+			vp: root[0],
+			ev: root[1],
+			key: deep ? "" : tree_pagekey(),
+			dead: false,
+			kids: tree_nodes(res, root[1], root[0])
+		});
+	});
+}
+
+// expanding a branch is one request and never a recursive prefetch: "."
+// against the branch's own url returns exactly its children, with no
+// chain above it to re-parse and no excl to merge around.
+function tree_expand(node, cb) {
+	tree_load(".", SR + "/" + (node.ev ? node.ev + "/" : ""), node.key,
+		function (err, res) {
+			if (err)
+				return cb(err);
+
+			node.kids = tree_nodes(res, node.ev, node.vp);
+			cb(null);
+		});
 }
 
 // -- boot --------------------------------------------------------------
