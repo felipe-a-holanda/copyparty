@@ -62,6 +62,62 @@ mode, swipe actions, pull-to-refresh, grid view, the folder-tree sheet, the
 overflow menu, the settings screen and the image viewer. The header omits
 the controls that would drive them rather than showing dead buttons.
 
+## widths
+
+`nu` is drawn as a phone design, but it is not a phone-only UI. Width is a
+first-class variable with three bands, spelled in `em` so they track the
+user's font size (the rest of `web/` is `em` too -- `ui.css:302`,
+`md.css:274`):
+
+| band | CSS | what it is |
+|---|---|---|
+| `< 44em` | no query at all -- the base rules | the handoff, unchanged |
+| `44em-64em` | `@media (min-width: 44em) and (max-width: 63.99em)` | a centered 760px column; tablets and half-screen windows |
+| `>= 64em` | `@media (min-width: 64em)` | tree dock + a column grid, content flush left and capped at `100em` |
+| `>= 80em` | `@media (min-width: 80em)` | still the wide band, plus the Type column |
+
+`>= 80em` adds a column to the wide band; it is not a fourth layout.
+
+**One markup, three layouts.** The wide band is reached by CSS over the same
+DOM the narrow band renders -- **never by a second render function**. A
+second renderer for width is a bug, not an optimization: it doubles the cost
+of every surface added after it, and it breaks the cheapest test there is --
+a resize from 1200px to 380px must reflow without re-rendering, without
+refetching the listing, and without losing sort, filter or scroll.
+
+The one sanctioned exception is **grid view**, which is a genuinely different
+renderer over the same `filtered()` output -- a different presentation of the
+data, not a different width of the same presentation. It stays that way and
+simply gets a wide tile size.
+
+The corollary: a cell whose *text* differs per band carries both forms in the
+DOM (`.nu_n` narrow, `.nu_w` wide) and CSS picks one. JS may not reformat a
+cell it is not allowed to re-render.
+
+**Width and capability are different questions, gated by different queries.**
+
+| question | query | example |
+|---|---|---|
+| layout | `min-width` | how many columns, is there a dock |
+| interaction | `pointer`, `hover` | is a long-press handler installed at all |
+
+A 1024px touch tablet and a 1024px desktop window are the same layout and
+emphatically not the same input, so a capability query never appears inside a
+width query and never gates layout. Gestures are attached only under
+`(pointer: coarse)`; the context menu only under
+`(hover: hover) and (pointer: fine)`. Both are read in **JS** (`CAP` in
+`nu.js`), not only in CSS, because a CSS-only gate hides the affordance while
+leaving the listener attached. `CAP` re-reads each query on `mq.onchange` --
+a capability latched once at boot is wrong on every device that changes input
+mode. It deliberately does not reuse `util.js`'s `TOUCH`
+(`'ontouchstart' in window`), which is a device fact true on every hybrid
+laptop, and which `nu` could not see anyway since it never loads `util.js`.
+
+**Nothing may be hover-only.** A hybrid laptop can be driven by finger at
+1400px, so every action reachable by hover must also have a visible control.
+The context menu is an accelerator for the row's actions, never their only
+door.
+
 ## data contract
 
 `ls0` is embedded in the HTML by the `is_js` branch of httpcli, so the first
