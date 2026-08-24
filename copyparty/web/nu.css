@@ -29,6 +29,10 @@
 	   unchecked switch has to read as a control at rest, and --fill is the
 	   search box's own ground. */
 	--tgl-off: #dcdee5;
+	/* the selection circle at rest (README:117-119). not --chev: the
+	   chevron is a glyph and this is a 2px stroke around nothing, and the
+	   handoff gives them two different greys on purpose. */
+	--cb-off: #c9ccd4;
 	--sel: #f0edf9;
 	/* --sel is the :active / selected fill; hover is a weaker, separate
 	   state and must not borrow it, or a mouseover reads as a selection */
@@ -92,6 +96,7 @@
 		--fg4: #6a6f7a;
 		--chev: #4b505a;
 		--tgl-off: #33353d;
+		--cb-off: #3d414b;
 		--sel: #241f33;
 		--hov: #1d1e24;
 		--ring: oklch(0.78 0.15 var(--acc-h));
@@ -133,6 +138,7 @@
 	--fg4: #6a6f7a;
 	--chev: #4b505a;
 	--tgl-off: #33353d;
+	--cb-off: #3d414b;
 	--sel: #241f33;
 	--hov: #1d1e24;
 	--ring: oklch(0.78 0.15 var(--acc-h));
@@ -302,6 +308,31 @@ a {
 
 #nu_hereb[disabled] #nu_hered {
 	display: none;
+}
+
+/* the nav bar's right slot (README:96-97): 14px/500, muted outside the
+   mode and accent inside it. both states are declared here and the mode is
+   one attribute on <html>, so nothing else has to know which is showing.
+   #nu_nav>* above already gives it the 44px target. */
+#nu_selb {
+	flex: 0 0 auto;
+	border: 0;
+	background: none;
+	padding: 0 2px;
+	font: 500 14px var(--font);
+	color: var(--fg2);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+:root[data-sel] #nu_selb {
+	color: var(--accent);
+}
+
+#nu_selb:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+	border-radius: 6px;
 }
 
 #nu_srch {
@@ -489,12 +520,78 @@ a {
 	outline-offset: -2px;
 }
 
+/* a selected row takes the palette's own selection fill. declared BELOW
+   :hover and :active on purpose: all three are one class plus one more
+   simple selector, so specificity ties and source order is the whole
+   tiebreak -- above them, a mouse merely passing over a marked row would
+   repaint it as unselected. */
+.nu_row.nu_on {
+	background: var(--sel);
+}
+
 /* the density opt-out. the wide band sets --row-pad on :root inside a media
    query, and a media query adds no specificity -- so this attribute rule
    outranks it wherever it appears, and the settings toggle that will drive
    it only ever has to write the attribute. */
 :root[data-dens="touch"] {
 	--row-pad: 14px 16px;
+}
+
+/* ---- the selection checkbox ----
+
+   the CONTAINER is what animates, 0 -> 30px (README:117-119), and not the
+   circle's opacity: a fade would leave every other cell where it was and
+   the checkbox would appear ON TOP of the type chip instead of pushing it.
+   the circle inside is a fixed 22px and never moves.
+
+   .nu_row's `gap: 14px` counts a zero-width flex item too, so a collapsed
+   container would still indent every row by 14px whenever the mode is off.
+   the negative margin gives exactly that gap back, and it is transitioned
+   with the width so the row slides once rather than jumping first.
+
+   the wide band throws all of this away -- up there the column is
+   permanent and there is nothing to animate. */
+.nu_ck {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	width: 0;
+	margin-right: -14px;
+	overflow: hidden;
+	transition: width .18s ease, margin-right .18s ease;
+}
+
+:root[data-sel] .nu_ck {
+	width: 30px;
+	margin-right: 0;
+}
+
+/* one circle for both renderers: the list's cell holds it and a tile's
+   top-right slot holds the same element, so the marked state is one rule
+   and not two. */
+.nu_cb {
+	flex: 0 0 auto;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 2px solid var(--cb-off);
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font: 700 12px var(--font);
+	color: var(--on-accent);
+}
+
+.nu_cb.on {
+	border-color: var(--accent);
+	background: var(--accent);
+}
+
+/* the tick is content and not markup, so an unmarked circle carries no
+   glyph to hide and the two states differ by one class. */
+.nu_cb.on::after {
+	content: "\2713";
 }
 
 .nu_type {
@@ -728,6 +825,25 @@ a {
 
 .nu_tk:empty {
 	display: none;
+}
+
+/* over a thumbnail an unmarked circle is a grey ring on a photograph, so
+   it gets the same translucent ground the extension badge sits on. the
+   marked one does not: it is already a filled accent disc. */
+.nu_tk .nu_cb {
+	background: var(--tile-badge);
+}
+
+.nu_tk .nu_cb.on {
+	background: var(--accent);
+}
+
+/* a tile has no row to fill, so the marked state is a ring. it is an
+   outline and not a border: a border would shrink the 114px box and
+   reflow the whole wrap on every tap. */
+.nu_tile.nu_on {
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
 }
 
 /* the name footer (README:153-155). truncation is the whole reason it is
@@ -1772,7 +1888,7 @@ button.nu_crow:focus-visible {
 	   `gap: 14px` and its --row-pad inline padding move every track, so
 	   anything aligning to these columns has to copy those two as well. */
 	:root {
-		--nu-cols: [chip] 42px [name] minmax(0, 1fr) [sz] 7em [dt] 10em [go] 1em;
+		--nu-cols: [ck] 30px [chip] 42px [name] minmax(0, 1fr) [sz] 7em [dt] 10em [go] 1em;
 	}
 
 	.nu_row {
@@ -1861,6 +1977,21 @@ button.nu_crow:focus-visible {
 	/* every cell placed by name, never by order: a file has no .nu_go, an
 	   unindexed folder has no size cell and a folder has no type cell, so
 	   ordinal placement breaks on the second row it meets. */
+
+	/* the checkbox is a COLUMN up here and never a hover reveal (spec 0002
+	   D2): `ck` is the first named line in --nu-cols, in both of that
+	   variable's declarations, so #nu_head reads the same track set and
+	   every column beside it stays where the header says it is. the
+	   narrow band's width animation and its gap-eating margin go with it
+	   -- there is nothing to animate when the column is always there, and
+	   the back row's empty cell simply holds the track open. */
+	.nu_ck {
+		grid-column: ck;
+		width: auto;
+		margin-right: 0;
+		transition: none;
+	}
+
 	.nu_type {
 		grid-column: chip;
 	}
@@ -1929,6 +2060,6 @@ button.nu_crow:focus-visible {
    missing. */
 @media (min-width: 80em) {
 	:root {
-		--nu-cols: [chip] 42px [name] minmax(0, 1fr) [sz] 7em [ty] 7em [dt] 10em [go] 1em;
+		--nu-cols: [ck] 30px [chip] 42px [name] minmax(0, 1fr) [sz] 7em [ty] 7em [dt] 10em [go] 1em;
 	}
 }

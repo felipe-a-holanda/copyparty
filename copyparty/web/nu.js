@@ -152,6 +152,10 @@ Ls.eng = {
 	nu_c_out: "Log out",
 	nu_c_soon: "not in this UI yet",
 
+	// selection mode: the nav bar's toggle, and the two states it names
+	nu_sel: "Select",
+	nu_seld: "Done",
+
 	// the status line and a folder's own count
 	nu_item: "item",
 	nu_items: "items",
@@ -512,7 +516,15 @@ var ST = {
 	// the folder tree: `root` is one node (see tree_node), `expanded` is
 	// vpath -> bool, the open/closed state. a node's `kids` is the cache,
 	// so collapsing and reopening a branch costs no second request.
-	tree: { root: null, expanded: {} }
+	tree: { root: null, expanded: {} },
+	// selection. `selmode` is the mode the nav bar's right slot toggles;
+	// `sel` is name -> 1 over the folder we are standing in, and NOT over
+	// filtered(): a selection made before the filter narrowed is still a
+	// selection, and the action bar has to act on all of it. `selanchor`
+	// is the last checkbox touched -- what a shift-click extends from.
+	selmode: false,
+	sel: {},
+	selanchor: null
 };
 
 // -- mode plumbing -----------------------------------------------------
@@ -720,6 +732,270 @@ function filtered() {
 	return sorted(ret);
 }
 
+// -- selection ---------------------------------------------------------
+//
+// the key is the row's own BASENAME -- decoded, exactly what nm() answers
+// -- and never an index into the listing: draw() re-sorts and re-filters
+// under the selection every time a chip is tapped or a letter is typed,
+// and an index would follow whichever row happened to slide into that slot.
+//
+// there is no "selection renderer" either. selection is state on the two
+// renderers that already exist: render_list and render_grid read ST.sel
+// while they draw, and everything below asks for a redraw through the same
+// draw() the filter uses. a third writer of #nu_list would be a third place
+// for the row markup to drift.
+
+function sel_has(f) {
+	return !!ST.sel[nm(f)];
+}
+
+function sel_set(f, v) {
+	var k = nm(f);
+	if (v)
+		ST.sel[k] = 1;
+	else
+		delete ST.sel[k];
+}
+
+function sel_n() {
+	var n = 0;
+	for (var k in ST.sel)
+		n++;
+
+	return n;
+}
+
+// the selected items in the listing's own order, over ST.items and not
+// over filtered(): the count in the status line and the list the action
+// bar posts have to be the same list, and a filter changed after the
+// selection was made must not silently shrink what Excluir destroys.
+function sel_list() {
+	var ret = [];
+	for (var a = 0; a < ST.items.length; a++)
+		if (sel_has(ST.items[a]))
+			ret.push(ST.items[a]);
+
+	return ret;
+}
+
+function item_by_key(k) {
+	if (!k)
+		return null;
+
+	for (var a = 0; a < ST.items.length; a++)
+		if (nm(ST.items[a]) == k)
+			return ST.items[a];
+
+	return null;
+}
+
+// the one door in and out of the mode. leaving it CLEARS the selection --
+// "Concluir" is the design's own word for finished, and a mode left with
+// rows still marked would delete them the next time it was entered.
+function set_sel(on) {
+	ST.selmode = !!on;
+	if (!ST.selmode) {
+		ST.sel = {};
+		ST.selanchor = null;
+	}
+	sel_fx();
+}
+
+// the mode's whole presentation, in one place: the attribute the css bands
+// read, the nav bar's label, the action bar's slot set, and a redraw. every
+// entry point below ends here rather than each repainting its own corner.
+function sel_fx() {
+	var de = document.documentElement,
+		b = ebi("nu_selb");
+
+	if (ST.selmode)
+		de.setAttribute("data-sel", "1");
+	else
+		de.removeAttribute("data-sel");
+
+	if (b) {
+		b.textContent = t(ST.selmode ? "nu_seld" : "nu_sel");
+		b.setAttribute("aria-pressed", ST.selmode ? "true" : "false");
+	}
+
+	draw();
+}
+
+// shift extends over what the user can SEE -- filtered(), in the order the
+// list is drawn in -- and applies the anchor's own state to the whole run,
+// which is the classic UI's rule (msel.seltgl, browser.js:8831-8856).
+function sel_range(f) {
+	var shown = filtered(),
+		k = nm(f),
+		o1 = -1, o2 = -1;
+
+	for (var a = 0; a < shown.length; a++) {
+		var ak = nm(shown[a]);
+		if (ak == ST.selanchor)
+			o1 = a;
+		if (ak == k)
+			o2 = a;
+	}
+
+	if (o1 < 0 || o2 < 0)
+		return sel_set(f, !sel_has(f));
+
+	var st = sel_has(shown[o1]);
+	if (o1 > o2)
+		o2 = [o1, o1 = o2][0];
+
+	for (var a = o1; a <= o2; a++)
+		sel_set(shown[a], st);
+}
+
+// the delegated click on #nu_list, installed at every width and on every
+// pointer -- it is what makes a checkbox a control inside an <a href>.
+//
+// spec 0002 D2: the row STAYS a link and a plain click still navigates. so
+// this preventDefaults exactly three things and nothing else -- a tap on
+// the checkbox, a modified click, and the click the browser sends after a
+// long-press has already turned the row into a selection.
+function sel_click(e) {
+	var el = e.target,
+		row = el && el.closest ? el.closest(".nu_row, .nu_tile") : null;
+
+	// swallowed even off a row: the finger that lifted after a long-press
+	// may well have drifted onto the row's padding
+	if (LP.eat) {
+		LP.eat = false;
+		e.preventDefault();
+		return;
+	}
+
+	if (!row || row.classList.contains("nu_back"))
+		return;
+
+	var ck = el.closest(".nu_ck, .nu_tk"),
+		mod = e.shiftKey || e.ctrlKey || e.metaKey;
+
+	if (!ck && !mod)
+		return;
+
+	// ctrl-click on a link is normally "open in a new tab" and shift-click
+	// is "open in a new window"; 0002 D2 spends both on selection, exactly
+	// as the classic UI does, so both have to be taken from the browser.
+	e.preventDefault();
+
+	var f = item_by_key(row.getAttribute("data-k"));
+	if (!f)
+		return;
+
+	if (e.shiftKey && ST.selanchor)
+		sel_range(f);
+	else {
+		sel_set(f, !sel_has(f));
+		ST.selanchor = nm(f);
+	}
+
+	// a shift-click through a list of links leaves a text selection behind
+	try { window.getSelection().removeAllRanges(); }
+	catch (ex) { }
+
+	ST.selmode = true;
+	sel_fx();
+}
+
+// -- the long-press ----------------------------------------------------
+//
+// 420ms, a 6px cancel threshold and navigator.vibrate(12) (README:243).
+// the threshold is a DISTANCE and not a per-axis one: a 5px-by-5px drag is
+// a 7px drag, and a list that scrolls diagonally under a thumb is exactly
+// how a scroll gets mistaken for a press.
+//
+// installed only under CAP.coarse, from JS. a css-only gate would hide the
+// affordance and leave the listener attached, and a long-press waiting for
+// a mouse is the bug CAP exists to prevent (spec 0002 D2).
+
+var LP = { t: null, x: 0, y: 0, k: null, eat: false };
+
+function lp_cancel() {
+	if (LP.t) {
+		clearTimeout(LP.t);
+		LP.t = null;
+	}
+}
+
+function lp_down(e) {
+	lp_cancel();
+
+	// two fingers is a pinch, never a press
+	var tt = e.touches && e.touches.length == 1 ? e.touches[0] : null,
+		row = tt && e.target && e.target.closest ?
+			e.target.closest(".nu_row, .nu_tile") : null;
+
+	if (!row || row.classList.contains("nu_back"))
+		return;
+
+	LP.x = tt.clientX;
+	LP.y = tt.clientY;
+	LP.k = row.getAttribute("data-k");
+	LP.t = setTimeout(lp_fire, 420);
+}
+
+function lp_move(e) {
+	if (!LP.t)
+		return;
+
+	var tt = e.touches && e.touches[0];
+	if (!tt)
+		return lp_cancel();
+
+	var dx = tt.clientX - LP.x,
+		dy = tt.clientY - LP.y;
+
+	if (dx * dx + dy * dy > 36)
+		lp_cancel();
+}
+
+function lp_fire() {
+	LP.t = null;
+
+	var f = item_by_key(LP.k);
+	if (!f)
+		return;
+
+	// the whole point of the haptic: the mode opened while the finger was
+	// still down, and there is no other signal that it did
+	try { if (navigator.vibrate) navigator.vibrate(12); }
+	catch (ex) { }
+
+	sel_set(f, true);
+	ST.selanchor = nm(f);
+
+	// the browser still sends a click when the finger lifts, and that click
+	// would navigate into the row the press just marked
+	LP.eat = true;
+
+	ST.selmode = true;
+	sel_fx();
+}
+
+function lp_bind(on) {
+	var el = ebi("nu_list");
+
+	if (on) {
+		// passive: the gesture never preventDefaults the touch stream, and
+		// a non-passive touchmove on the scroller is a jank the whole list
+		// pays for
+		el.addEventListener("touchstart", lp_down, { passive: true });
+		el.addEventListener("touchmove", lp_move, { passive: true });
+		el.addEventListener("touchend", lp_cancel);
+		el.addEventListener("touchcancel", lp_cancel);
+	}
+	else {
+		el.removeEventListener("touchstart", lp_down);
+		el.removeEventListener("touchmove", lp_move);
+		el.removeEventListener("touchend", lp_cancel);
+		el.removeEventListener("touchcancel", lp_cancel);
+		lp_cancel();
+	}
+}
+
 // -- render ------------------------------------------------------------
 
 function render_chips() {
@@ -852,7 +1128,12 @@ function render_list(shown) {
 	// grid felt like giving it.
 	if (vpnodes.length > 1) {
 		var up = vpnodes[vpnodes.length - 2];
+		// an EMPTY checkbox cell, not a missing one: the wide band places
+		// every cell by name so a missing one would cost it nothing, but
+		// the narrow band is a flex row and the back row would sit 30px
+		// left of every other row the moment the mode opened.
 		h.push('<a class="nu_row nu_dir nu_back" href="' + esc(keep(SR + "/" + up[0])) + '">' +
+			'<span class="nu_ck"></span>' +
 			'<span class="nu_type">DIR</span>' +
 			'<span class="nu_meat"><span class="nu_name">' + esc(t("nu_back")) + '</span>' +
 			'<span class="nu_sub"><span class="nu_n">' + esc(t("nu_back2")) +
@@ -865,6 +1146,11 @@ function render_list(shown) {
 			d = isdir(f),
 			k = kind_of(f),
 			txt = chip_text(f),
+			// the selection's key AND the row's identity: sel_click and
+			// the long-press both read it back off the element, so the
+			// dom never has to be matched against the listing by index.
+			nk = nm(f),
+			on = !!ST.sel[nk],
 			nf = d ? nfiles(f) : null,
 			// a folder's recursive size and its file count are filled by
 			// one query in one tuple (httpcli.py, `select sz, nf from ds`),
@@ -882,7 +1168,13 @@ function render_list(shown) {
 			ty = d ? "" : cell("nu_c_ty", ext_of(f));
 
 		h.push('<a class="nu_row ' + (d ? "nu_dir" : "nu_file") +
+			(on ? " nu_on" : "") + '" data-k="' + esc(nk) +
 			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
+			// the CONTAINER is what the css animates from 0 to 30px, so it
+			// is emitted at every width and in both states; the circle
+			// inside it only ever changes class.
+			'<span class="nu_ck"><span class="nu_cb' + (on ? " on" : "") +
+			'"></span></span>' +
 			'<span class="nu_type' + (k && k != "dir" ? " nu_t_" + k : "") +
 			(txt.length > 3 ? " nu_long" : "") + '">' + txt + '</span>' +
 			'<span class="nu_meat">' +
@@ -1089,13 +1381,16 @@ function render_grid(shown) {
 		var f = shown[a],
 			d = isdir(f),
 			k = kind_of(f),
+			nk = nm(f),
+			on = !!ST.sel[nk],
 			th = th_src(f);
 
 		if (th === null)
 			TH_WAIT = true;
 
 		h.push('<a class="nu_tile ' + (d ? "nu_dir" : "nu_file") +
-			(k && k != "dir" ? " nu_k_" + k : "") +
+			(k && k != "dir" ? " nu_k_" + k : "") + (on ? " nu_on" : "") +
+			'" data-k="' + esc(nk) +
 			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
 			// the thumbnail sits UNDER the badge and the name, over the
 			// placeholder fill; alt is empty because the name is already
@@ -1108,10 +1403,15 @@ function render_grid(shown) {
 			// as it does for the list's chip, so this is not escaped there
 			// either
 			'<span class="nu_tb">' + chip_text(f) + '</span>' +
-			// the top-right slot card 5's 22px checkbox lands in
-			// (README:151-152). `.nu_tk:empty` is display:none, the same
-			// trick #nu_tools uses, so an unused slot costs no box.
-			'<span class="nu_tk"></span>' +
+			// the top-right slot's 22px checkbox (README:151-152).
+			// `.nu_tk:empty` is display:none, the same trick #nu_tools
+			// uses, so outside the mode the slot costs no box -- which is
+			// why a tile's checkbox is emitted on the MODE and the list's
+			// is emitted always: the list animates a width and a tile
+			// has nothing to animate, it is an overlay on a thumbnail.
+			'<span class="nu_tk">' + (ST.selmode ?
+				'<span class="nu_cb' + (on ? " on" : "") + '"></span>' : "") +
+			'</span>' +
 			'<span class="nu_tn">' + esc(nm(f)) + '</span></a>');
 	}
 
@@ -1912,6 +2212,18 @@ function ctx_bind(on) {
 
 function take(ls) {
 	ST.items = (ls.dirs || []).concat(ls.files || []);
+
+	// a name the new listing no longer carries drops out of the selection:
+	// the refresh after a delete must not leave the status line counting
+	// rows the server has just destroyed.
+	var keep = {};
+	for (var a = 0; a < ST.items.length; a++) {
+		var k = nm(ST.items[a]);
+		if (ST.sel[k])
+			keep[k] = 1;
+	}
+	ST.sel = keep;
+
 	draw();
 }
 
@@ -2541,6 +2853,36 @@ function set_dots(v) {
 	ebi("nu_bar").onclick = act_click;
 	ebi("nu_tools").onclick = act_click;
 
+	// the nav bar's right slot (README:96-97). appended here rather than
+	// shipped in nu.html because it is a door into a MODE, and the two
+	// words it can say are the mode's own -- they come out of the same
+	// t() table sel_fx() reads, so the label and the state cannot drift.
+	// created ONCE and only ever relabelled after that, the rule #nu_sort
+	// lives by: a control must never be re-rendered under a finger that is
+	// already on it.
+	var selb = document.createElement("button");
+	selb.id = "nu_selb";
+	selb.type = "button";
+	// the mode is off at boot, and sel_fx() owns every change after this
+	selb.textContent = t("nu_sel");
+	selb.setAttribute("aria-pressed", "false");
+	selb.onclick = function () { set_sel(!ST.selmode); };
+	ebi("nu_nav").appendChild(selb);
+
+	// the checkbox is a control living inside an <a href>, so the list
+	// needs its own click handler at every width and on every pointer --
+	// see sel_click for the three things it takes from the browser and the
+	// one it deliberately does not.
+	ebi("nu_list").onclick = sel_click;
+
+	// the long-press is a touch gesture, so it is installed only where
+	// there is a coarse pointer, and removed again the moment there is
+	// not. same shape as ctx_bind below: a hybrid folded into a slate
+	// gains it and folded back loses it, both without a reload -- which is
+	// what makes this a capability and not a width.
+	lp_bind(CAP.coarse);
+	CAP.on("coarse", function (v) { lp_bind(v); });
+
 	ebi("nu_sort").onclick = function () {
 		sheet("nu_sheet", ST.sheet != "nu_sheet");
 	};
@@ -2618,8 +2960,11 @@ function set_dots(v) {
 		if (ctx_row)
 			return;
 
-		// never steal a browser shortcut; shift is left alone because
-		// shift+arrow is range selection, and selection is 0001's card 5
+		// never steal a browser shortcut. shift is the exception the
+		// listener was already written around: there is no browser
+		// shortcut on shift+arrow inside a list of links, and it is the
+		// keyboard's own door into selection -- claimed below, in the same
+		// listener rather than in a second one.
 		if (e.ctrlKey || e.altKey || e.metaKey)
 			return;
 
@@ -2655,7 +3000,34 @@ function set_dots(v) {
 			return;
 
 		e.preventDefault();
-		rows[nxt].focus();
+
+		// shift extends the selection as the focus travels, which makes
+		// the mode reachable with no pointer at all. the redraw replaces
+		// the node the focus was on, so the focus is re-taken after it --
+		// by index, because nothing here changed the order.
+		if (e.shiftKey) {
+			var f = item_by_key(rows[nxt].getAttribute("data-k"));
+			if (f) {
+				if (!ST.selanchor) {
+					var cf = cur < 0 ? null :
+						item_by_key(rows[cur].getAttribute("data-k"));
+
+					if (cf) {
+						sel_set(cf, true);
+						ST.selanchor = nm(cf);
+					}
+				}
+
+				sel_set(f, true);
+				ST.selanchor = nm(f);
+				ST.selmode = true;
+				sel_fx();
+				rows = ebi("nu_list").querySelectorAll(".nu_row, .nu_tile");
+			}
+		}
+
+		if (rows[nxt])
+			rows[nxt].focus();
 	});
 
 	// have_tree() is the --ui-notree gate (see it for why a truthiness read
