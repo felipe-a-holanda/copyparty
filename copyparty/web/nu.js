@@ -124,6 +124,110 @@ function t(k) {
 	return (L && L[k]) || Ls.eng[k] || k;
 }
 
+// -- preferences -------------------------------------------------------
+//
+// one key per preference in localStorage, seeded from the volume's own
+// defaults in `cfg` / `srvcfg` so a volume configured with `--nsort` or
+// `--grid` opens the way its operator intended before the user has touched
+// anything. spec 0001 D3.
+//
+// the accessor is wrapped because it THROWS, it does not return null: a
+// private window, a browser set to block site data, or an iframe on a
+// third-party origin all raise on the getter itself, and an unguarded read
+// at boot would take the whole UI down before the first row is painted.
+//
+// KEY NAMES ARE A CONTRACT, not a detail. four of these have an identical
+// counterpart in the classic UI's own settings pane, and for those four nu
+// reuses the classic UI's bare key AND its "1"/"0" encoding
+// (`bcfg_get`/`bcfg_set`, util.js:1314-1332, over `sread`/`swrite`,
+// util.js:1243-1259) -- `dotfiles` (browser.js:6981), `dir1st` (:6990),
+// `nsort` (:6989) and `thumbs` (:6040). the handoff asks for exactly this
+// (README:220-222): flip "folders first" in either UI and the other one
+// already agrees. everything nu invents is `nu_`-prefixed instead, because
+// the flat localStorage namespace is shared with the classic UI and a bare
+// name of our own would be a collision waiting to happen.
+
+function sget(k) {
+	try { return localStorage.getItem(k); }
+	catch (ex) { return null; }
+}
+
+function sset(k, v) {
+	try {
+		if (v === null || v === undefined)
+			localStorage.removeItem(k);
+		else
+			localStorage.setItem(k, v);
+	}
+	catch (ex) { }
+}
+
+// `b` marks a boolean (the "1"/"0" encoding); `ok` is the legal set for an
+// enum, so a key hand-edited to junk falls back to the default instead of
+// rendering an undefined branch. `d` is a FUNCTION and not a value: the
+// table is built at load, and `cfg` must be read at the moment it is asked
+// for, not baked into a literal here.
+var PREFS = {
+	// the four shared with the classic UI -- bare keys, on purpose
+	dotfiles: { b: 1, d: function () { return !!srvcfg.see_dots; } },
+	dir1st: { b: 1, d: function () { return true; } },
+	nsort: { b: 1, d: function () { return !!(cfg && cfg.dnsort); } },
+	thumbs: { b: 1, d: function () { return true; } },
+
+	// nu's own. `nu_thm` predates this table -- the boot skeleton already
+	// wrote it -- and is folded in here rather than left as a second,
+	// hand-rolled reader.
+	nu_grid: { b: 1, d: function () { return !!(cfg && cfg.dgrid); } },
+	nu_dens: { b: 1, d: function () { return false; } },
+	nu_szfmt: { ok: ["auto", "si", "iec"], d: function () { return "auto"; } },
+	nu_acch: { ok: ["300", "250", "160", "60"], d: function () { return "300"; } },
+	nu_thm: { ok: ["light", "dark"], d: function () { return ""; } }
+};
+
+function pref(k) {
+	var p = PREFS[k];
+	if (!p)
+		return null;
+
+	var v = sget(k);
+	if (v === null || (p.ok && p.ok.indexOf(v) < 0))
+		return p.d();
+
+	return p.b ? v == "1" : v;
+}
+
+function setpref(k, v) {
+	var p = PREFS[k];
+	if (!p)
+		return;
+
+	// an enum's empty value REMOVES the key rather than storing "": the
+	// stored empty string would read back as "not in ok" and resolve to the
+	// default anyway, and a key that is absent is the honest way to spell
+	// "no choice made" -- which is what the theme's `system` state is.
+	sset(k, p.b ? (v ? "1" : "0") : (v || null));
+}
+
+// the preferences that are pure presentation: one attribute on <html> each,
+// written at boot so the FIRST paint already matches them, and rewritten
+// when the settings screen flips one. no stylesheet of its own is needed --
+// the theme's three states (nu.css:55-106) and the density opt-out
+// (nu.css:396) are already in the css, and nothing writes them today.
+function apply_prefs() {
+	var d = document.documentElement,
+		thm = pref("nu_thm");
+
+	if (thm)
+		d.setAttribute("data-thm", thm);
+	else
+		d.removeAttribute("data-thm");
+
+	if (pref("nu_dens"))
+		d.setAttribute("data-dens", "touch");
+	else
+		d.removeAttribute("data-dens");
+}
+
 // -- data shape --------------------------------------------------------
 //
 // `ls0` is embedded in the html by httpcli (the is_js branch), so the first
@@ -188,15 +292,35 @@ function dt_long(f) {
 	return d.getDate() + " " + MON[d.getMonth()] + " " + d.getFullYear();
 }
 
-var UNITS = ["B", "KB", "MB", "GB", "TB", "PB"];
+// the size format, per README:208 -- Auto / Decimal / Binário. `auto` is
+// the shape this file always had (1024 with the short suffixes, which is
+// what a file manager shows); the other two say which one they are, and
+// name their units accordingly, because "1.0 KB" meaning 1024 bytes is the
+// ambiguity the user picked a format to escape.
+//
+//   [ divisor, suffixes ]
+var UNITS = {
+	auto: [1024, ["B", "KB", "MB", "GB", "TB", "PB"]],
+	si: [1000, ["B", "kB", "MB", "GB", "TB", "PB"]],
+	iec: [1024, ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]]
+};
 
+// THREE callers, and they are meant to move together: a row's file size and
+// a folder's wide-band size (render_list) and the status line's total
+// (render_stat). the one thing this must never reformat is the folder
+// cell's NARROW form -- that is an item count, not a size, and it is built
+// from nfiles() and never passes through here.
 function humansize(n) {
 	if (!n)
 		return n === 0 ? "0 B" : "";
 
-	var i = 0;
-	while (n >= 1024 && i < UNITS.length - 1) { n /= 1024; i++; }
-	return (i && n < 10 ? n.toFixed(1) : Math.round(n)) + " " + UNITS[i];
+	var u = UNITS[pref("nu_szfmt")] || UNITS.auto,
+		div = u[0],
+		tab = u[1],
+		i = 0;
+
+	while (n >= div && i < tab.length - 1) { n /= div; i++; }
+	return (i && n < 10 ? n.toFixed(1) : Math.round(n)) + " " + tab[i];
 }
 
 // -- type chips --------------------------------------------------------
@@ -381,16 +505,18 @@ function watch_head() {
 
 // -- sorting and filtering ---------------------------------------------
 
-var dir1st = true;
-
+// both of these used to be constants -- `dir1st` a literal `true`, and the
+// collation `cfg.dnsort` straight off the volume. they are preferences now,
+// which is not a new read of `cfg`: the volume default is still what an
+// untouched key answers with, it is just overridable from here on.
 function cmp_name(a, b) {
 	return nm(a).localeCompare(nm(b), undefined, {
-		numeric: !!(cfg && cfg.dnsort), sensitivity: "base"
+		numeric: !!pref("nsort"), sensitivity: "base"
 	});
 }
 
 function sorted(list) {
-	var k = ST.sortKey, d = ST.sortDir;
+	var k = ST.sortKey, d = ST.sortDir, dir1st = pref("dir1st");
 
 	return list.slice().sort(function (a, b) {
 		// folders first, except when sorting by item count
@@ -1260,10 +1386,11 @@ function tree_nodes(res, base_ev, base_vp) {
 	for (var raw in keys)
 		ret.push(tree_node(raw, keys[raw], base_ev, base_vp));
 
-	// same collation as the listing's name sort, so the two agree
+	// same collation as the listing's name sort, so the two agree -- and it
+	// reads the same preference, so they still agree after the user flips it
 	ret.sort(function (a, b) {
 		return a.name.localeCompare(b.name, undefined, {
-			numeric: !!(cfg && cfg.dnsort), sensitivity: "base"
+			numeric: !!pref("nsort"), sensitivity: "base"
 		});
 	});
 	return ret;
@@ -1480,18 +1607,11 @@ function tree_boot() {
 // -- boot --------------------------------------------------------------
 
 (function () {
-	// theme: the handoff specifies light only and puts appearance in the
-	// settings screen, which is not built yet -- so follow the OS, and
-	// honour a choice the previous skeleton may have stored.
-	// `thm` and not `t`: var is function-scoped and hoisted, so a `var t`
-	// anywhere in this IIFE shadows t() for the whole of it -- including the
-	// calls below.
-	try {
-		var thm = localStorage.getItem("nu_thm");
-		if (thm)
-			document.documentElement.setAttribute("data-thm", thm);
-	}
-	catch (ex) { }
+	// FIRST, above everything: the theme and the density are attributes on
+	// <html>, and writing them before the list is built is what keeps the
+	// first paint from flashing the wrong one. the hand-rolled localStorage
+	// read that used to sit here is now one row of PREFS like any other.
+	apply_prefs();
 
 	watch_head();
 
