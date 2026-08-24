@@ -27,6 +27,10 @@
 
 		<div id="nu_srch">
 			<span class="nu_ico">&#8981;</span>
+			<!-- jinja cannot see `Ls`, so every string rendered in this file
+			     -- this placeholder, the sort sheet's heading and hint, and the
+			     `classic` link -- carries the english here and is overwritten
+			     with t() when nu.js boots. -->
 			<input id="nu_q" type="search" autocomplete="off" autocapitalize="off"
 				spellcheck="false" placeholder="Search in this folder">
 		</div>
@@ -77,8 +81,8 @@
 	<section id="nu_sheet" hidden aria-modal="true" role="dialog">
 		<div class="nu_grip"></div>
 		<div class="nu_shead">
-			<h2>Sort by</h2>
-			<span class="nu_hint">tap again to reverse</span>
+			<h2 id="nu_sh2">Sort by</h2>
+			<span id="nu_shint" class="nu_hint">tap again to reverse</span>
 		</div>
 		<div id="nu_sopts"></div>
 	</section>
@@ -88,7 +92,12 @@
 	</footer>
 
 	<script nonce="{{ js_nonce }}">
-		var SR = "{{ r }}",
+		// the i18n dict the tl tag below fills in. it is declared HERE and not
+		// in nu.js because the tag has to run between the two, and it is not
+		// taken from util.js (which is where the classic UI's copy lives,
+		// util.js:310-311) because nu does not load util.js at all.
+		var Ls = {},
+			SR = "{{ r }}",
 			TS = "{{ ts }}",
 			// the admin's ui_* switches and the server's capabilities.
 			// raw, never |tojson: vn.js_htm is already a json *string*
@@ -107,6 +116,13 @@
 			vpnodes = {{ vpnodes|tojson }},
 			ls0 = {{ ls0|tojson }};
 	</script>
+	<!-- guarded on eng, unlike browser.html:155: there is no web/tl/eng.js
+	     (copyparty/__init__.py lists chi..vie) and --lang defaults to eng, so
+	     an unguarded tag is a 404 on every default install. nu.js's own
+	     Ls.eng is the english table, and t() falls back to it per key. -->
+	{%- if lang != "eng" %}
+	<script nonce="{{ js_nonce }}" src="{{ r }}/.cpr/w/tl/{{ lang }}.js?_={{ ts }}"></script>
+	{%- endif %}
 	<script nonce="{{ js_nonce }}" src="{{ r }}/.cpr/w/nu.js?_={{ ts }}"></script>
 	{%- if js %}
 	<script nonce="{{ js_nonce }}" src="{{ js }}_={{ ts }}"></script>

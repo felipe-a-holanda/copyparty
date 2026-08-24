@@ -21,26 +21,84 @@ function esc(t) {
 
 // -- strings -----------------------------------------------------------
 //
-// a shim, deliberately: `Ls` lives in util.js and nu does not load util.js,
-// the `tl/{{ lang }}.js` tag has to be guarded on `lang != "eng"` (there is
-// no web/tl/eng.js), and the classic UI resolves `Ls[lang]` as a whole
-// object with no per-key fallback (browser.js:716). all three belong to one
-// owner, and that is spec 0001's first card, which lifts STR wholesale into
-// `Ls.eng` and replaces t()'s body. until then every string this UI adds is
-// already routed through t(), so that lift is a rename and not a hunt for
-// literals. the older strings are not moved here in the same breath -- that
-// is 0001's diff to make, not a second one to reconcile.
+// `Ls` is declared in nu.html's bootstrap block, not here and not in
+// util.js: the classic UI's `Ls = {}` lives in util.js:310-311 and nu does
+// not load util.js (2415 lines, and it installs window.onerror at import,
+// util.js:307). the `tl/{{ lang }}.js` tag sits between that block and this
+// file, guarded on `lang != "eng"` -- there is no web/tl/eng.js and --lang
+// defaults to eng, so an unguarded tag 404s on every default install.
+//
+// the english table below is nu's own for the same reason: browser.js
+// carries Ls.eng for the classic UI and nu does not load browser.js either.
+// two rules keep it honest:
+//
+// * a string the classic UI already ships is reused BY KEY, so the 22 tl
+//   files answer it with no new translation work -- gt_* are the grid
+//   view's sort labels (browser.js:487-491);
+// * every genuinely new string is namespaced `nu_`, because a tl file's
+//   top-level keys are the classic UI's and a bare name like `s_sz` is
+//   already taken over there. a collision would not fail, it would render
+//   someone else's translation.
 
-var STR = {
+Ls.eng = {
+	// 0002's STR, lifted verbatim
 	tree_h: "Folders",
 	tree_gone: "this volume is unreachable",
 	ctx_open: "Open",
 	ctx_dl: "Download",
-	ctx_old: "Open in the classic UI"
+	ctx_old: "Open in the classic UI",
+
+	// the classic UI's keys, reused
+	gt_sort: "Sort by",
+	gt_name: "Name",
+	gt_ts: "Date",
+	gt_sz: "Size",
+	gt_ext: "Type",
+
+	// the filter chips
+	nu_f_all: "All",
+	nu_f_dir: "Folders",
+	nu_f_vid: "Video",
+	nu_f_img: "Images",
+	nu_f_doc: "Documents",
+	nu_f_aud: "Audio",
+
+	// the sort sheet: the fifth label, and every hint
+	nu_s_n: "Items",
+	nu_sh_name: "A \u2192 Z",
+	nu_sh_ts: "newest first",
+	nu_sh_sz: "largest first",
+	nu_sh_ext: "by extension",
+	nu_sh_n: "folders only",
+	nu_s_rev: "tap again to reverse",
+
+	// the header's static text, filled at boot
+	nu_q: "Search in this folder",
+	nu_old: "classic",
+
+	// the status line and a folder's own count
+	nu_item: "item",
+	nu_items: "items",
+
+	// the list
+	nu_back: "Back",
+	nu_back2: "parent folder",
+	nu_nomatch: "nothing matches",
+	nu_empty: "this folder is empty",
+	nu_eload: "could not load listing",
+	nu_eold: "try the classic UI"
 };
 
+// per-key, and that is the whole point of writing a second t(): the classic
+// UI resolves the language as one object (`Ls[lang] || Ls.eng`,
+// browser.js:716), so a key its tl file predates comes back `undefined` and
+// renders as "undefined". here every key falls back on its own, which is
+// what lets nu ship strings the 22 tl files have never seen without making
+// a translated install worse than an english one.
+var L = Ls[lang] || null;
+
 function t(k) {
-	return STR[k] || k;
+	return (L && L[k]) || Ls.eng[k] || k;
 }
 
 // -- data shape --------------------------------------------------------
@@ -155,22 +213,30 @@ function chip_text(f) {
 
 // -- state -------------------------------------------------------------
 
+// [key, label key, kind]. the label is a key and not a string: the table is
+// built at load, and t() has to be free to answer differently per language.
 var FILTERS = [
-	["all", "All", null],
-	["dir", "Folders", "dir"],
-	["vid", "Video", "vid"],
-	["img", "Images", "img"],
-	["doc", "Documents", "doc"],
-	["aud", "Audio", "aud"]
+	["all", "nu_f_all", null],
+	["dir", "nu_f_dir", "dir"],
+	["vid", "nu_f_vid", "vid"],
+	["img", "nu_f_img", "img"],
+	["doc", "nu_f_doc", "doc"],
+	["aud", "nu_f_aud", "aud"]
 ];
 
-// natural direction per key: name/type ascend, the rest descend
+// [key, label key, hint key, natural direction]. natural direction per key:
+// name/type ascend, the rest descend.
+//
+// the labels are read by THREE callers -- the sort sheet (render_sheet), the
+// status line (sort_label) and the wide band's column header (render_head).
+// they are keys here so translating this one table translates all three;
+// there is deliberately no fourth source.
 var SORTS = [
-	["name", "Name", "A → Z", 1],
-	["ts", "Date", "newest first", -1],
-	["sz", "Size", "largest first", -1],
-	["ext", "Type", "by extension", 1],
-	["n", "Items", "folders only", -1]
+	["name", "gt_name", "nu_sh_name", 1],
+	["ts", "gt_ts", "nu_sh_ts", -1],
+	["sz", "gt_sz", "nu_sh_sz", -1],
+	["ext", "gt_ext", "nu_sh_ext", 1],
+	["n", "nu_s_n", "nu_sh_n", -1]
 ];
 
 var ST = {
@@ -355,7 +421,7 @@ function render_chips() {
 	for (var a = 0; a < FILTERS.length; a++)
 		h.push('<button type="button" class="nu_chip' +
 			(FILTERS[a][0] == ST.filter ? " on" : "") +
-			'" data-f="' + FILTERS[a][0] + '">' + esc(FILTERS[a][1]) + '</button>');
+			'" data-f="' + FILTERS[a][0] + '">' + esc(t(FILTERS[a][1])) + '</button>');
 
 	ebi("nu_chips").innerHTML = h.join("");
 }
@@ -366,8 +432,8 @@ function render_stat(shown) {
 		if (!isdir(shown[a]))
 			sz += shown[a].sz || 0;
 
-	var word = n == 1 ? " item" : " items";
-	ebi("nu_count").textContent = n + word + (sz ? " · " + humansize(sz) : "");
+	var word = t(n == 1 ? "nu_item" : "nu_items");
+	ebi("nu_count").textContent = n + " " + word + (sz ? " · " + humansize(sz) : "");
 
 	ebi("nu_sort").textContent = sort_label(ST.sortKey) + " " +
 		(ST.sortDir > 0 ? "↑" : "↓");
@@ -376,7 +442,7 @@ function render_stat(shown) {
 function sort_label(k) {
 	for (var a = 0; a < SORTS.length; a++)
 		if (SORTS[a][0] == k)
-			return SORTS[a][1];
+			return t(SORTS[a][1]);
 
 	return k;
 }
@@ -473,8 +539,9 @@ function render_list(shown) {
 		var up = vpnodes[vpnodes.length - 2];
 		h.push('<a class="nu_row nu_dir nu_back" href="' + esc(keep(SR + "/" + up[0])) + '">' +
 			'<span class="nu_type">DIR</span>' +
-			'<span class="nu_meat"><span class="nu_name">Back</span>' +
-			'<span class="nu_sub"><span class="nu_n">parent folder</span></span></span>' +
+			'<span class="nu_meat"><span class="nu_name">' + esc(t("nu_back")) + '</span>' +
+			'<span class="nu_sub"><span class="nu_n">' + esc(t("nu_back2")) +
+			'</span></span></span>' +
 			'<span class="nu_go">›</span></a>');
 	}
 
@@ -491,7 +558,7 @@ function render_list(shown) {
 			// still the 4096 of the directory inode.
 			sz = d
 				? (nf === null ? "" : cell2("nu_c_sz",
-					nf + (nf == 1 ? " item" : " items"), humansize(f.sz)))
+					nf + " " + t(nf == 1 ? "nu_item" : "nu_items"), humansize(f.sz)))
 				: cell("nu_c_sz", humansize(f.sz)),
 			dt = cell2("nu_c_dt", dt_short(f), dt_long(f)),
 			// files only: a folder's ext is "---", so ext_of() would fall
@@ -511,7 +578,7 @@ function render_list(shown) {
 
 	if (!shown.length)
 		h.push('<p class="nu_empty">' +
-			(ST.q || ST.filter != "all" ? "nothing matches" : "this folder is empty") +
+			esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
 			'</p>');
 
 	ebi("nu_list").innerHTML = h.join("");
@@ -535,8 +602,8 @@ function render_sheet() {
 		var s = SORTS[a], on = s[0] == ST.sortKey;
 		h.push('<button type="button" class="nu_sopt' + (on ? " on" : "") +
 			'" data-k="' + s[0] + '">' +
-			'<span class="nu_slab">' + esc(s[1]) + '</span>' +
-			'<span class="nu_shnt">' + esc(s[2]) + '</span>' +
+			'<span class="nu_slab">' + esc(t(s[1])) + '</span>' +
+			'<span class="nu_shnt">' + esc(t(s[2])) + '</span>' +
 			'<span class="nu_sdir">' + (on ? (ST.sortDir > 0 ? "↑" : "↓") : "") +
 			'</span></button>');
 	}
@@ -1117,10 +1184,13 @@ function tree_boot() {
 	// theme: the handoff specifies light only and puts appearance in the
 	// settings screen, which is not built yet -- so follow the OS, and
 	// honour a choice the previous skeleton may have stored.
+	// `thm` and not `t`: var is function-scoped and hoisted, so a `var t`
+	// anywhere in this IIFE shadows t() for the whole of it -- including the
+	// calls below.
 	try {
-		var t = localStorage.getItem("nu_thm");
-		if (t)
-			document.documentElement.setAttribute("data-thm", t);
+		var thm = localStorage.getItem("nu_thm");
+		if (thm)
+			document.documentElement.setAttribute("data-thm", thm);
 	}
 	catch (ex) { }
 
@@ -1135,7 +1205,14 @@ function tree_boot() {
 
 	// the classic UI strips the query from the address bar, so a bare ?nu0
 	// would not survive a reload; leaving unpins instead. see docs/nu-ui.md
+	// the strings that live in nu.html: jinja cannot see Ls, so the markup
+	// carries the english and boot overwrites it with t().
+	ebi("nu_q").placeholder = t("nu_q");
+	ebi("nu_sh2").textContent = t("gt_sort");
+	ebi("nu_shint").textContent = t("nu_s_rev");
+
 	var esc_a = ebi("nu_old");
+	esc_a.textContent = t("nu_old");
 	esc_a.href = location.pathname + "?nu0";
 	if (STICKY)
 		esc_a.onclick = function (e) { e.preventDefault(); unpin(); };
@@ -1296,8 +1373,8 @@ function tree_boot() {
 	fetch_ls(location.pathname, function (err, ls) {
 		if (err)
 			return (ebi("nu_list").innerHTML =
-				'<p class="nu_empty">could not load listing: ' + esc(err.message) +
-				' &mdash; <a href="?nu0">try the classic UI</a></p>');
+				'<p class="nu_empty">' + esc(t("nu_eload")) + ': ' + esc(err.message) +
+				' &mdash; <a href="?nu0">' + esc(t("nu_eold")) + '</a></p>');
 
 		take(ls);
 	});
