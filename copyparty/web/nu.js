@@ -2,10 +2,11 @@
 // and design-handoff/ for the design this implements.
 //
 // this is the base layer: list, row, navigation, header (search, filter
-// chips, status line), sorting, the action bar and the ... router.
-// selection, swipe, grid, the folder-tree sheet, settings and the image
-// viewer are not here yet -- until they are, the router's `classic UI` row
-// is the door to them.
+// chips, status line), sorting, the action bar, the ... router, the
+// preference layer and the settings screen.
+// selection, swipe, grid, the folder-tree sheet and the image viewer are
+// not here yet -- until they are, the router's `classic UI` row is the door
+// to them.
 //
 // house style, same as the rest of web/: plain ES5-ish JS, no build step,
 // no framework.
@@ -98,6 +99,38 @@ Ls.eng = {
 	nu_m_cpa: "Control panel",
 	nu_m_cpa_m: "volumes, account, admin",
 	nu_m_old: "The classic UI",
+
+	// the settings screen: four group headers, its rows, and the labels of
+	// the controls inside them
+	nu_c_disp: "Display",
+	nu_c_size: "Sizes",
+	nu_c_look: "Appearance",
+	nu_c_acct: "Account",
+	nu_c_dots: "Hidden files",
+	nu_c_dots_s: "show files whose name starts with a dot",
+	nu_c_dir1st: "Folders first",
+	nu_c_nsort: "Natural sort",
+	nu_c_nsort_s: "“item 2” before “item 10”",
+	nu_c_thumbs: "Thumbnails",
+	nu_c_grid: "Grid view",
+	nu_c_dens: "Roomy rows",
+	nu_c_dens_s: "keep the touch-sized row on a wide screen",
+	nu_c_szfmt: "Size format",
+	nu_c_sz_a: "Auto",
+	nu_c_sz_d: "Decimal",
+	nu_c_sz_b: "Binary",
+	nu_c_acc: "Accent colour",
+	nu_c_a300: "Violet",
+	nu_c_a250: "Blue",
+	nu_c_a160: "Green",
+	nu_c_a60: "Amber",
+	nu_c_thm: "Theme",
+	nu_c_thm_l: "Light",
+	nu_c_thm_d: "Dark",
+	nu_c_thm_a: "System",
+	nu_c_lang: "Language",
+	nu_c_out: "Log out",
+	nu_c_soon: "not in this UI yet",
 
 	// the status line and a folder's own count
 	nu_item: "item",
@@ -208,11 +241,11 @@ function setpref(k, v) {
 	sset(k, p.b ? (v ? "1" : "0") : (v || null));
 }
 
-// the preferences that are pure presentation: one attribute on <html> each,
-// written at boot so the FIRST paint already matches them, and rewritten
-// when the settings screen flips one. no stylesheet of its own is needed --
-// the theme's three states (nu.css:55-106) and the density opt-out
-// (nu.css:396) are already in the css, and nothing writes them today.
+// the preferences that are pure presentation: three writes on <html>, done
+// at boot so the FIRST paint already matches them, and redone when the
+// settings screen flips one. none of them needs a stylesheet of its own --
+// the theme's three states, the density opt-out and the accent's --acc-h are
+// all already in nu.css, and this is the only thing that writes them.
 function apply_prefs() {
 	var d = document.documentElement,
 		thm = pref("nu_thm");
@@ -222,10 +255,24 @@ function apply_prefs() {
 	else
 		d.removeAttribute("data-thm");
 
+	// the DENSITY writes this attribute and nothing else. spec 0002 owns
+	// the mechanism -- .nu_row reads var(--row-pad, 14px 16px), the wide
+	// band redefines --row-pad compact on :root, and :root[data-dens="touch"]
+	// overrides it back on specificity, because a media query adds none.
+	// restyling .nu_row from here would fight that rule instead of using it.
 	if (pref("nu_dens"))
 		d.setAttribute("data-dens", "touch");
 	else
 		d.removeAttribute("data-dens");
+
+	// the ACCENT is a hue, and one inline custom property is the whole of
+	// it: --accent and --ring are each defined three times in nu.css (light,
+	// prefers-dark, and the explicit dark theme) and all six now read
+	// --acc-h, so this survives a theme switch and the focus ring moves with
+	// it. an inline property on <html> outranks every :root rule in the
+	// sheet, which is what makes that true in both directions.
+	try { d.style.setProperty("--acc-h", pref("nu_acch")); }
+	catch (ex) { }
 }
 
 // -- data shape --------------------------------------------------------
@@ -814,7 +861,8 @@ function render_sheet() {
 
 var SHEETS = {
 	nu_sheet: render_sheet,
-	nu_menu: render_menu
+	nu_menu: render_menu,
+	nu_cfg: render_cfg
 };
 
 function sheet(id, on) {
@@ -1026,9 +1074,12 @@ var MENU = [
 			function () { return !!srvcfg.have_shr; },
 			null],
 
+		// the router's first live row, and the reason it was written as a
+		// table: nothing here was redesigned to add it, one `null` became
+		// one handler
 		["cfg", "nu_m_cfg", "nu_m_cfg_m",
 			function () { return true; },
-			null],
+			function () { sheet("nu_cfg", true); }],
 
 		// --ui-nocpla is the admin's existing switch for exactly this link
 		// (browser.js:1299 hides #goh on it), so nu reads it rather than
@@ -1100,6 +1151,237 @@ function render_menu() {
 	}
 
 	ebi("nu_mopts").innerHTML = h.join("");
+}
+
+// -- the settings screen -----------------------------------------------
+//
+// the design's four groups, in its order (README:206-211), plus the two
+// additions this spec names as additions: a Densidade row in Exibição and a
+// Tema row in Aparência. a table again, for the same reason the router is
+// one -- card 3 adds crop and 3x to Exibição by adding two lines here.
+//
+//   group: [ label key, rows ]
+//   row:   [ kind, key, label key, sub key or null, ok(), options ]
+//
+// kinds:
+//   tgl   a boolean preference; the whole 52px row is the target
+//   seg   a segmented enum, [value, label key] pairs
+//   acc   the accent swatches, [hue, label key] pairs
+//   lang  the language select -- a cookie, not a preference
+//   dead  declared, rendered, and disabled
+//
+// `ok()` gates a row away ENTIRELY rather than disabling it: a user without
+// udot cannot be given a hidden-files switch that would do nothing, because
+// a dead switch cannot explain why (spec 0001 D3). `dead` is the other
+// state, and it is for surfaces this spec defers on purpose -- a row that
+// says "not yet" is honest; a missing row reads as finished.
+
+var yep = function () { return true; };
+
+var CFG = [
+	["nu_c_disp", [
+		["tgl", "dotfiles", "nu_c_dots", "nu_c_dots_s", can_dot],
+		["tgl", "dir1st", "nu_c_dir1st", null, yep],
+		["tgl", "nsort", "nu_c_nsort", "nu_c_nsort_s", yep],
+		["tgl", "thumbs", "nu_c_thumbs", null, yep],
+		["tgl", "nu_grid", "nu_c_grid", null, yep],
+		["tgl", "nu_dens", "nu_c_dens", "nu_c_dens_s", yep]
+	]],
+
+	["nu_c_size", [
+		["seg", "nu_szfmt", "nu_c_szfmt", null, yep, [
+			["auto", "nu_c_sz_a"],
+			["si", "nu_c_sz_d"],
+			["iec", "nu_c_sz_b"]]]
+	]],
+
+	["nu_c_look", [
+		// the four hues share the palette's lightness and chroma; only the
+		// hue changes, which is the whole of "trocar acento não deve exigir
+		// mais nada" (README:297-298)
+		["acc", "nu_acch", "nu_c_acc", null, yep, [
+			["300", "nu_c_a300"],
+			["250", "nu_c_a250"],
+			["160", "nu_c_a160"],
+			["60", "nu_c_a60"]]],
+
+		["seg", "nu_thm", "nu_c_thm", null, yep, [
+			["light", "nu_c_thm_l"],
+			["dark", "nu_c_thm_d"],
+			// the empty value is `system`, and it is stored by REMOVING the
+			// key -- see setpref. all three states are already in nu.css.
+			["", "nu_c_thm_a"]]]
+	]],
+
+	["nu_c_acct", [
+		["lang", "lang", "nu_c_lang", null, yep],
+		["dead", "cpa", "nu_m_cpa", "nu_c_soon",
+			function () { return !srvcfg.ui_nocpla; }],
+		["dead", "out", "nu_c_out", "nu_c_soon", yep]
+	]]
+];
+
+// the languages the server ships a tl file for (copyparty/__init__.py's
+// manifest, and browser.js:687-711 holds the same table for the classic UI
+// -- nu does not load browser.js). endonyms, so the list is legible in the
+// language it offers. every code is three characters, which is what lets
+// this be one string instead of 23 array literals.
+var LANGN = ("eng English|nor Norsk|chi 中文|cze Čeština|" +
+	"deu Deutsch|epo Esperanto|fin Suomi|fra français|" +
+	"grc Ελληνικά|hun Magyar|" +
+	"ita Italiano|jpn 日本語|kor 한국어|" +
+	"nld Nederlands|nno Nynorsk|pol Polski|por Português|" +
+	"rus Русский|spa Español|" +
+	"swe Svenska|tur Türkçe|" +
+	"ukr Українська|" +
+	"vie Tiếng Việt").split("|");
+
+function cfg_row(k) {
+	for (var a = 0; a < CFG.length; a++) {
+		var rows = CFG[a][1];
+		for (var b = 0; b < rows.length; b++)
+			if (rows[b][1] == k)
+				return rows[b];
+	}
+	return null;
+}
+
+function cfg_lab(m) {
+	return '<span class="nu_clab"><span class="nu_cl">' + esc(t(m[2])) +
+		'</span>' + (m[3] ? '<span class="nu_cs">' + esc(t(m[3])) +
+			'</span>' : "") + '</span>';
+}
+
+function cfg_ctrl(m) {
+	var k = m[1], h = [], a, o;
+
+	if (m[0] == "seg" || m[0] == "acc") {
+		var cur = pref(k),
+			seg = m[0] == "seg",
+			cls = seg ? "nu_copt" : "nu_swa";
+
+		for (a = 0; a < m[5].length; a++) {
+			o = m[5][a];
+			h.push('<button type="button" class="' + cls +
+				(o[0] === cur ? " on" : "") + '" data-c="' + esc(k) +
+				'" data-v="' + esc(o[0]) + '"' +
+				// the swatch has no text, so its name has to be its label
+				(seg ? "" : ' aria-label="' + esc(t(o[1])) + '"') +
+				' aria-pressed="' + (o[0] === cur ? "true" : "false") + '">' +
+				(seg ? esc(t(o[1])) : "") + '</button>');
+		}
+
+		return '<span class="' + (seg ? "nu_seg" : "nu_swz") + '">' +
+			h.join("") + '</span>';
+	}
+
+	if (m[0] == "lang") {
+		for (a = 0; a < LANGN.length; a++) {
+			var code = LANGN[a].slice(0, 3);
+			h.push('<option value="' + esc(code) + '"' +
+				(code == lang ? " selected" : "") + '>' +
+				esc(LANGN[a].slice(4)) + '</option>');
+		}
+		return '<select id="nu_clang" class="nu_csel">' + h.join("") +
+			'</select>';
+	}
+
+	// tgl. aria-checked lives on the ROW, which is the button; the switch
+	// itself is decoration and must not be a second control in the tab order.
+	return '<span class="nu_tgl' + (pref(k) ? " on" : "") +
+		'"><span class="nu_knob"></span></span>';
+}
+
+function render_cfg() {
+	var h = [];
+
+	for (var a = 0; a < CFG.length; a++) {
+		var sec = CFG[a], rows = [];
+
+		for (var b = 0; b < sec[1].length; b++) {
+			var m = sec[1][b], ok = false;
+			try { ok = !!m[4](); }
+			catch (ex) { }
+
+			if (!ok)
+				continue;
+
+			var tgl = m[0] == "tgl",
+				dead = m[0] == "dead";
+
+			rows.push('<' + (tgl ? "button" : "div") + ' class="nu_crow"' +
+				(tgl ? ' type="button" role="switch" data-c="' + esc(m[1]) +
+					'" aria-checked="' + (pref(m[1]) ? "true" : "false") + '"'
+					: "") + (dead ? " disabled" : "") + '>' +
+				cfg_lab(m) + (dead ? "" : cfg_ctrl(m)) +
+				'</' + (tgl ? "button" : "div") + '>');
+		}
+
+		// same rule as the router: a group whose every row was gated away
+		// prints no header either
+		if (rows.length)
+			h.push('<h3 class="nu_cgh">' + esc(t(sec[0])) + '</h3>' +
+				'<div class="nu_ccard">' + rows.join("") + '</div>');
+	}
+
+	ebi("nu_cfgb").innerHTML = h.join("");
+
+	var sel = ebi("nu_clang");
+	if (sel)
+		sel.onchange = function () {
+			// the language is a server cookie, not a preference: httpcli
+			// resolves `lang` from cplng before the template is rendered
+			// (:344), so the strings can only change on the next load.
+			setck("cplng=" + this.value, function () { location.reload(); });
+		};
+}
+
+// what a flipped preference has to invalidate. a table and not a switch
+// inside the click handler, for the same reason as everything else in this
+// file: card 3's grid and card 4's tree sheet add a key here.
+var PREF_FX = {
+	dir1st: draw,
+	nsort: draw,
+	thumbs: draw,
+	nu_grid: draw,
+	nu_szfmt: draw,
+	nu_dens: apply_prefs,
+	nu_thm: apply_prefs,
+	nu_acch: apply_prefs
+};
+
+function cfg_set(k, v) {
+	// dotfiles is the one preference the server enforces, so its write is
+	// not ours: set_dots owns the key, the cookie, the tree's caches and the
+	// refetch, and they have to happen together or the D3 trap reopens.
+	if (k == "dotfiles")
+		set_dots(v);
+	else {
+		setpref(k, v);
+		var fx = PREF_FX[k];
+		if (fx)
+			fx();
+	}
+
+	// always, and last: the screen is rendered FROM the preferences, so this
+	// is what moves the knob the user just tapped.
+	render_cfg();
+}
+
+function cfg_click(e) {
+	var el = e.target && e.target.closest ? e.target : null;
+	if (!el)
+		return;
+
+	// the segmented options and the swatches carry their own value; a toggle
+	// row carries only its key, and flips whatever is there now
+	var b = el.closest(".nu_copt, .nu_swa");
+	if (b)
+		return cfg_set(b.getAttribute("data-c"), b.getAttribute("data-v"));
+
+	b = el.closest(".nu_crow");
+	if (b && !b.disabled && b.getAttribute("data-c"))
+		cfg_set(b.getAttribute("data-c"), !pref(b.getAttribute("data-c")));
 }
 
 function pick_sort(k) {
@@ -1722,6 +2004,12 @@ function set_dots(v) {
 	ebi("nu_sh2").textContent = t("gt_sort");
 	ebi("nu_shint").textContent = t("nu_s_rev");
 
+	// the settings screen's two static nodes. its title is the router row's
+	// own key -- the door and the room say the same word, in every language,
+	// from one string.
+	ebi("nu_cfgh").textContent = t("nu_m_cfg");
+	ebi("nu_cfgx").setAttribute("aria-label", t("nu_back"));
+
 	var upa = ebi("nu_up");
 	if (!upa.classList.contains("nu_hidden"))
 		upa.href = keep(upa.getAttribute("href"));
@@ -1764,6 +2052,11 @@ function set_dots(v) {
 		if (b)
 			pick_sort(b.getAttribute("data-k"));
 	};
+
+	// the back chevron is the screen's own door out; Escape is the keyboard's
+	// and it is already handled for every tenant of sheet().
+	ebi("nu_cfgx").onclick = function () { sheet("nu_cfg", false); };
+	ebi("nu_cfgb").onclick = cfg_click;
 
 	ebi("nu_mopts").onclick = function (e) {
 		var b = e.target.closest(".nu_mrow");

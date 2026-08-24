@@ -3,7 +3,15 @@
    tokens follow design-handoff/ (mobile redesign, hi-fi). */
 
 :root {
-	--accent: oklch(0.55 0.13 300);
+	/* the accent is a HUE, not a colour. the handoff's four accents share
+	   lightness and chroma and differ only in hue (README:297-298: "Trocar
+	   acento não deve exigir mais nada"), and both --accent and --ring are
+	   redefined per theme -- so a settings screen that wrote --accent would
+	   have to write six values and would still lose the ring the moment the
+	   theme changed. it writes --acc-h instead, one property, on <html>,
+	   where it outranks every :root rule below and survives the swap. */
+	--acc-h: 300;
+	--accent: oklch(0.55 0.13 var(--acc-h));
 	--danger: oklch(0.52 0.16 25);
 	--on-accent: #fff;
 
@@ -17,11 +25,15 @@
 	--fg3: #5c616b;
 	--fg4: #a3a7b0;
 	--chev: #c3c6ce;
+	/* the settings toggle's OFF track (README:213). not --fill: an
+	   unchecked switch has to read as a control at rest, and --fill is the
+	   search box's own ground. */
+	--tgl-off: #dcdee5;
 	--sel: #f0edf9;
 	/* --sel is the :active / selected fill; hover is a weaker, separate
 	   state and must not borrow it, or a mouseover reads as a selection */
 	--hov: #f2f2f6;
-	--ring: oklch(0.58 0.17 300);
+	--ring: oklch(0.58 0.17 var(--acc-h));
 
 	--t-dir-bg: #e9e6f5;
 	--t-any-bg: #e6e7ec;
@@ -64,12 +76,13 @@
 		--fg3: #a8adb8;
 		--fg4: #6a6f7a;
 		--chev: #4b505a;
+		--tgl-off: #33353d;
 		--sel: #241f33;
 		--hov: #1d1e24;
-		--ring: oklch(0.78 0.15 300);
+		--ring: oklch(0.78 0.15 var(--acc-h));
 		--head-bg: rgba(15, 16, 19, .92);
 		--foot-bg: rgba(15, 16, 19, .94);
-		--accent: oklch(0.72 0.12 300);
+		--accent: oklch(0.72 0.12 var(--acc-h));
 		--on-accent: #16171a;
 
 		--t-dir-bg: #2a2340;
@@ -97,12 +110,13 @@
 	--fg3: #a8adb8;
 	--fg4: #6a6f7a;
 	--chev: #4b505a;
+	--tgl-off: #33353d;
 	--sel: #241f33;
 	--hov: #1d1e24;
-	--ring: oklch(0.78 0.15 300);
+	--ring: oklch(0.78 0.15 var(--acc-h));
 	--head-bg: rgba(15, 16, 19, .92);
 	--foot-bg: rgba(15, 16, 19, .94);
-	--accent: oklch(0.72 0.12 300);
+	--accent: oklch(0.72 0.12 var(--acc-h));
 	--on-accent: #16171a;
 
 	--t-dir-bg: #2a2340;
@@ -569,6 +583,9 @@ a {
 	#nu_veil,
 	#nu_sheet,
 	#nu_menu,
+	#nu_cfg,
+	.nu_tgl,
+	.nu_tgl .nu_knob,
 	.nu_row {
 		transition: none;
 	}
@@ -699,6 +716,288 @@ a {
 	flex: 0 0 auto;
 	font-size: 16px;
 	color: var(--chev);
+}
+
+/* ---- the settings screen ----
+
+   a tenant of sheet(), like the sort sheet and the ... router -- same veil,
+   same Escape, same "only one open" rule -- but NOT of their shell: this one
+   is a full screen over the list (README:199), not a card that rises off the
+   bottom edge, so it takes the machinery and none of the geometry. that is
+   why the shell rule above lists its tenants by id instead of by class.
+
+   at >= 64em it becomes a centered panel with the veil behind it (spec 0002
+   D5); see the wide band for the four properties that do it. */
+
+#nu_cfg {
+	position: fixed;
+	inset: 0;
+	z-index: 9;
+	display: flex;
+	flex-direction: column;
+	background: var(--bg);
+	transform: translateY(100%);
+	transition: transform .26s cubic-bezier(.2, .9, .3, 1);
+}
+
+#nu_cfg.on {
+	transform: translateY(0);
+}
+
+/* the screen's own header. three tracks and not two, with the third empty:
+   the title is centered in the VIEWPORT, so the back button needs a mirror
+   of its own width on the other side or the title sits 44px off. */
+#nu_cfgt {
+	flex: 0 0 auto;
+	display: grid;
+	grid-template-columns: 44px 1fr 44px;
+	align-items: center;
+	border-bottom: 1px solid var(--line);
+	padding-top: env(safe-area-inset-top);
+	background: var(--bg);
+}
+
+#nu_cfgx {
+	width: 44px;
+	height: 44px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: var(--accent);
+	font: 22px/1 var(--font);
+	cursor: pointer;
+}
+
+#nu_cfgx:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
+	border-radius: 8px;
+}
+
+#nu_cfgh {
+	margin: 0;
+	font-size: 17px;
+	font-weight: 600;
+	text-align: center;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_cfgb {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 16px 16px 40px;
+	padding-bottom: calc(40px + env(safe-area-inset-bottom));
+}
+
+.nu_cgh {
+	margin: 0;
+	padding: 0 6px 8px;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .1em;
+	text-transform: uppercase;
+	color: var(--fg2);
+}
+
+.nu_ccard {
+	background: var(--surface);
+	border-radius: 14px;
+	/* the rows' dividers run to the card's edge, so the corners have to
+	   clip them -- otherwise the last divider draws across the radius */
+	overflow: hidden;
+	margin-bottom: 18px;
+}
+
+.nu_ccard>*+* {
+	border-top: 1px solid var(--line-soft);
+}
+
+.nu_crow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	width: 100%;
+	min-height: 52px;
+	padding: 8px 14px;
+	background: none;
+	border: 0;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+}
+
+/* the toggle rows are <button> elements: the whole 52px row is the target,
+   not the 44px switch at the end of it. the non-toggle rows are <div>s
+   holding their own control, so they must not take the pressed fill. */
+button.nu_crow {
+	cursor: pointer;
+}
+
+button.nu_crow:active {
+	background: var(--hov);
+}
+
+button.nu_crow:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
+}
+
+.nu_clab {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.nu_clab .nu_cl {
+	font-size: 15px;
+	font-weight: 500;
+}
+
+.nu_clab .nu_cs {
+	font-size: 12px;
+	color: var(--fg2);
+}
+
+.nu_crow[disabled] {
+	opacity: .45;
+}
+
+/* ---- the settings controls (README:213-218) ---- */
+
+.nu_tgl {
+	flex: 0 0 auto;
+	width: 44px;
+	height: 26px;
+	padding: 2px;
+	border-radius: 13px;
+	background: var(--tgl-off);
+	transition: background .16s ease;
+	display: block;
+}
+
+.nu_tgl .nu_knob {
+	display: block;
+	width: 22px;
+	height: 22px;
+	border-radius: 11px;
+	background: #fff;
+	box-shadow: 0 1px 3px rgba(20, 20, 30, .25);
+	transition: transform .16s ease;
+}
+
+.nu_tgl.on {
+	background: var(--accent);
+}
+
+.nu_tgl.on .nu_knob {
+	transform: translateX(18px);
+}
+
+.nu_seg {
+	flex: 0 0 auto;
+	display: flex;
+	gap: 4px;
+	padding: 3px;
+	border-radius: 10px;
+	background: var(--fill);
+}
+
+.nu_copt {
+	border: 0;
+	padding: 5px 10px;
+	border-radius: 8px;
+	background: none;
+	color: var(--fg3);
+	font: 600 12px var(--font);
+	cursor: pointer;
+}
+
+.nu_copt.on {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.nu_copt:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
+}
+
+.nu_swz {
+	flex: 0 0 auto;
+	display: flex;
+	gap: 8px;
+}
+
+/* the swatch paints the hue it WRITES, through the same two formulas the
+   palette uses -- so what the user taps is what the UI becomes, in either
+   theme. the hue rides a data attribute rather than an inline style: nu is
+   servable under a Content-Security-Policy (the csp_ui volflag), and a
+   style attribute built into innerHTML is exactly what such a policy drops. */
+.nu_swa {
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border-radius: 13px;
+	border: 2px solid transparent;
+	background: oklch(0.55 0.13 var(--sw-h)) content-box;
+	cursor: pointer;
+}
+
+.nu_swa[data-v="300"] {
+	--sw-h: 300;
+}
+
+.nu_swa[data-v="250"] {
+	--sw-h: 250;
+}
+
+.nu_swa[data-v="160"] {
+	--sw-h: 160;
+}
+
+.nu_swa[data-v="60"] {
+	--sw-h: 60;
+}
+
+.nu_swa.on {
+	border-color: var(--fg);
+}
+
+.nu_swa:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-thm="light"]) .nu_swa {
+		background: oklch(0.72 0.12 var(--sw-h)) content-box;
+	}
+}
+
+:root[data-thm="dark"] .nu_swa {
+	background: oklch(0.72 0.12 var(--sw-h)) content-box;
+}
+
+.nu_csel {
+	flex: 0 0 auto;
+	max-width: 55%;
+	border: 0;
+	border-radius: 8px;
+	padding: 5px 8px;
+	background: var(--fill);
+	color: var(--fg);
+	font: 500 13px var(--font);
+	cursor: pointer;
+}
+
+.nu_csel:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
 }
 
 /* ---- folder tree ----
@@ -1138,6 +1437,39 @@ a {
 	#nu_sheet.on,
 	#nu_menu.on {
 		transform: translate(-50%, 0);
+	}
+
+	/* the settings screen stops being a screen up here: spec 0002 D5 says a
+	   full-bleed sheet at 1440px is a phone layout wearing a desktop, so the
+	   SAME markup becomes a centered panel with the veil showing around it.
+	   `inset: 0` is what has to be undone -- the panel is sized by its
+	   content between two insets, and #nu_cfgb keeps the scroll. */
+	#nu_cfg {
+		inset: 40px auto 40px 50%;
+		width: min(560px, calc(100vw - 80px));
+		max-height: calc(100vh - 80px);
+		border-radius: 18px;
+		overflow: hidden;
+		box-shadow: 0 24px 60px rgba(20, 20, 30, .22);
+		transform: translate(-50%, 110%);
+	}
+
+	#nu_cfg.on {
+		transform: translate(-50%, 0);
+	}
+
+	/* the panel is its own surface now, not the page's background */
+	#nu_cfg,
+	#nu_cfgt {
+		background: var(--surface);
+	}
+
+	#nu_cfgt {
+		padding-top: 0;
+	}
+
+	.nu_ccard {
+		background: var(--bg);
 	}
 
 	/* ---- the row becomes the grid ----

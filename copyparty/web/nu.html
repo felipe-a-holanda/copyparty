@@ -102,6 +102,32 @@
 		<div id="nu_mopts"></div>
 	</section>
 
+	<!-- the settings screen. a third tenant of sheet() -- one veil, one
+	     Escape, one "only ever one open" rule -- but not of the two sheets'
+	     shell: this one is a full screen over the list below 64em and a
+	     centered panel above it, so it takes the machinery and none of the
+	     geometry (nu.css).
+
+	     the header is markup and the body is not: the title and the back
+	     button are two fixed nodes, and rewriting them on every flip of a
+	     toggle would destroy the control the user is currently pressing --
+	     the same rule #nu_head lives by. only #nu_cfgb is re-rendered.
+
+	     the strings here are english for the same reason as everywhere else
+	     in this file: jinja cannot see `Ls`, so nu.js overwrites them with
+	     t() at boot. -->
+	<section id="nu_cfg" hidden aria-modal="true" role="dialog" aria-labelledby="nu_cfgh">
+		<header id="nu_cfgt">
+			<button id="nu_cfgx" type="button" aria-label="Back">&lsaquo;</button>
+			<h2 id="nu_cfgh">Settings</h2>
+			<!-- the third grid track, empty on purpose: it mirrors the back
+			     button so the title is centered in the viewport and not 44px
+			     off it. -->
+			<span></span>
+		</header>
+		<div id="nu_cfgb"></div>
+	</section>
+
 	<footer id="nu_foot">
 		<span id="nu_srv">{{ srv_info }}</span>
 	</footer>
