@@ -47,6 +47,21 @@
 	--t-aud-bg: #f4ece0;
 	--t-aud-fg: #8a5a2c;
 
+	/* the grid tile's placeholder fills (README:146-150). they are the
+	   `background` shorthand's value and not a colour, because two of the
+	   three are gradients -- one property either way, so a tile's kind
+	   picks a token and nothing has to know which kind it got. a real
+	   thumbnail is drawn OVER this, so the fill is also the fallback when
+	   one fails to load. */
+	--tile-dir: #ebe8f5;
+	--tile-img: repeating-linear-gradient(135deg, #e6e3f0 0 7px, #dedaea 7px 14px);
+	--tile-any: repeating-linear-gradient(135deg, #eceef1 0 7px, #e4e7eb 7px 14px);
+	/* the two chrome boxes on top of it: the extension badge and the name
+	   footer are translucent so the fill (or the thumbnail) reads through */
+	--tile-badge: rgba(255, 255, 255, .72);
+	--tile-badge-fg: #7c7a8c;
+	--tile-foot: rgba(251, 251, 253, .88);
+
 	--head-bg: rgba(246, 246, 248, .92);
 	--foot-bg: rgba(246, 246, 248, .94);
 	--veil: rgba(20, 20, 30, .28);
@@ -80,6 +95,13 @@
 		--sel: #241f33;
 		--hov: #1d1e24;
 		--ring: oklch(0.78 0.15 var(--acc-h));
+		--tile-dir: #2a2340;
+		--tile-img: repeating-linear-gradient(135deg, #221d33 0 7px, #1c1830 7px 14px);
+		--tile-any: repeating-linear-gradient(135deg, #1f2026 0 7px, #191a1f 7px 14px);
+		--tile-badge: rgba(15, 16, 19, .72);
+		--tile-badge-fg: #9aa0ab;
+		--tile-foot: rgba(22, 23, 27, .88);
+
 		--head-bg: rgba(15, 16, 19, .92);
 		--foot-bg: rgba(15, 16, 19, .94);
 		--accent: oklch(0.72 0.12 var(--acc-h));
@@ -114,6 +136,13 @@
 	--sel: #241f33;
 	--hov: #1d1e24;
 	--ring: oklch(0.78 0.15 var(--acc-h));
+	--tile-dir: #2a2340;
+	--tile-img: repeating-linear-gradient(135deg, #221d33 0 7px, #1c1830 7px 14px);
+	--tile-any: repeating-linear-gradient(135deg, #1f2026 0 7px, #191a1f 7px 14px);
+	--tile-badge: rgba(15, 16, 19, .72);
+	--tile-badge-fg: #9aa0ab;
+	--tile-foot: rgba(22, 23, 27, .88);
+
 	--head-bg: rgba(15, 16, 19, .92);
 	--foot-bg: rgba(15, 16, 19, .94);
 	--accent: oklch(0.72 0.12 var(--acc-h));
@@ -317,7 +346,10 @@ a {
 	flex: 0 0 auto;
 }
 
-#nu_sort {
+/* the status line's two controls, one rule: the design gives them the same
+   12px/500 accent type and puts them side by side (README:109-111). */
+#nu_sort,
+#nu_view {
 	border: 0;
 	background: none;
 	padding: 0;
@@ -340,6 +372,7 @@ a {
 /* the sort button and the back link -- #nu_up is one of the header's
    buttons in everything but tag name. */
 #nu_sort:focus-visible,
+#nu_view:focus-visible,
 #nu_up:focus-visible {
 	outline: 2px solid var(--ring);
 	outline-offset: 3px;
@@ -526,6 +559,118 @@ a {
 .nu_t_aud {
 	--t-bg: var(--t-aud-bg);
 	--t-fg: var(--t-aud-fg);
+}
+
+/* ---- grid view ----
+
+   the one sanctioned second renderer (docs/nu-ui.md:88-92): a different
+   presentation of the same data, not a different width of the same
+   presentation. so it is the one surface here whose layout is keyed on a
+   PREFERENCE and not on a band -- `data-view` is written on <html> by
+   apply_prefs(), before the first paint, and the bands below then give the
+   same tiles a wider size.
+
+   #nu_list is the same container the list renders into; nothing here
+   restyles .nu_row, and nothing in the list section reaches a tile. */
+
+:root[data-view="grid"] #nu_list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	/* the 120px is clearance for the fixed action bar (93px of box plus
+	   air); the wide band takes it back, where there is no fixed bar */
+	padding: 8px 12px 120px;
+}
+
+/* the column header is a LIST affordance -- it is the wide band's sort
+   control, and a grid has no columns for it to label. so it goes at every
+   width in grid view, and #nu_sort in the status line stays the door the
+   sort keeps at every width and in both views.
+
+   two classes plus an id beats the wide band's `#nu_head { display: grid }`
+   on specificity, so this needs no !important and no place in the query. */
+:root[data-view="grid"] #nu_head {
+	display: none;
+}
+
+/* 114 x 114, radius 12 (README:145-146). the column count is NOT declared:
+   114 x 3 + 6 x 2 = 354 inside 390 - 24 of padding, so three columns fall
+   out of the tile size at the design width, and a wider window gets more of
+   them by wrapping rather than by a second rule. */
+.nu_tile {
+	position: relative;
+	display: block;
+	flex: 0 0 auto;
+	width: 114px;
+	height: 114px;
+	border-radius: 12px;
+	overflow: hidden;
+	background: var(--tile-any);
+}
+
+.nu_tile.nu_dir {
+	background: var(--tile-dir);
+}
+
+.nu_tile.nu_k_img {
+	background: var(--tile-img);
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.nu_tile:hover {
+		outline: 2px solid var(--line);
+		outline-offset: -2px;
+	}
+}
+
+.nu_tile:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+/* the extension badge, top-left: the same word the list's type chip
+   carries, in the design's own metric (README:147-149) */
+.nu_tb {
+	position: absolute;
+	top: 6px;
+	left: 6px;
+	padding: 2px 5px;
+	border-radius: 5px;
+	font: 500 9px var(--mono);
+	letter-spacing: .08em;
+	background: var(--tile-badge);
+	color: var(--tile-badge-fg);
+}
+
+/* the top-right slot, reserved for card 5's 22px checkbox and empty until
+   it lands. :empty and not a width query, the same mechanism #nu_tools
+   uses: an unused slot must cost no box, and content is what decides. */
+.nu_tk {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	width: 22px;
+	height: 22px;
+}
+
+.nu_tk:empty {
+	display: none;
+}
+
+/* the name footer (README:153-155). truncation is the whole reason it is
+   its own box: a tile is 114px and a filename is not. */
+.nu_tn {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 6px 7px;
+	font: 500 11px var(--font);
+	color: var(--fg);
+	background: var(--tile-foot);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* ---- sheet ---- */
@@ -1605,6 +1750,37 @@ button.nu_crow:focus-visible {
 	   chevron rather than leaving three empty columns behind it. */
 	.nu_back .nu_name {
 		grid-column: name / go;
+	}
+
+	/* ---- the wide tile ----
+
+	   spec 0002 D5: grid view stays a second renderer and "simply gets a
+	   wide tile size". 114px is a phone tile -- three of them in a 1440px
+	   window is the layout that spec exists to refuse. same markup, same
+	   wrap, one larger box: 160 + 10 of gap tiles the content column eight
+	   across at 1440px and keeps filling it up to the 100em cap, because
+	   the count is still the wrap's business and not a declared number.
+
+	   the container loses the fixed bar's 120px too -- up here the bar is
+	   in the status line and there is nothing at the bottom to clear. */
+	:root[data-view="grid"] #nu_list {
+		gap: 10px;
+		padding: 12px 16px 32px;
+	}
+
+	.nu_tile {
+		width: 160px;
+		height: 160px;
+		border-radius: 14px;
+	}
+
+	.nu_tb {
+		font-size: 10px;
+	}
+
+	.nu_tn {
+		padding: 7px 9px;
+		font-size: 12px;
 	}
 }
 

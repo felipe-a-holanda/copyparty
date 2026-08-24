@@ -74,6 +74,15 @@ Ls.eng = {
 	nu_sh_n: "folders only",
 	nu_s_rev: "tap again to reverse",
 
+	// the view control, in the status line and mirrored in the ... router.
+	// the button is labelled with the view it takes you TO, which is one
+	// unambiguous word to a sighted user and no sentence at all to a screen
+	// reader -- hence the two `_t` forms, which are the aria-labels.
+	nu_v_grid: "Grid",
+	nu_v_list: "List",
+	nu_v_grid_t: "Switch to grid view",
+	nu_v_list_t: "Switch to list view",
+
 	// the header's static text, filled at boot
 	nu_q: "Search in this folder",
 
@@ -85,7 +94,8 @@ Ls.eng = {
 	nu_mk_ask: "name of the new folder:",
 	nu_mk_err: "could not create the folder",
 
-	// the ... router: two section headers and eight rows
+	// the ... router: two section headers and nine rows
+	nu_m_view: "View",
 	nu_m_here: "In this folder",
 	nu_m_srv: "Server",
 	nu_m_newmd: "New .md note",
@@ -264,6 +274,19 @@ function apply_prefs() {
 		d.setAttribute("data-dens", "touch");
 	else
 		d.removeAttribute("data-dens");
+
+	// the VIEW is an attribute for the same reason the theme is one: css
+	// reads it in two places -- the grid container's own layout, and the
+	// column header it hides at EVERY width, because a column header is a
+	// list affordance and the grid has no columns -- and it has to be true
+	// at the FIRST paint. a grid restored from localStorage one draw()
+	// later would flash a list first. draw() then picks the renderer from
+	// the same preference, so the attribute and the markup can never
+	// disagree about which view is on screen.
+	if (pref("nu_grid"))
+		d.setAttribute("data-view", "grid");
+	else
+		d.removeAttribute("data-view");
 
 	// the ACCENT is a hue, and one inline custom property is the whole of
 	// it: --accent and --ring are each defined three times in nu.css (light,
@@ -677,6 +700,15 @@ function render_stat(shown) {
 
 	ebi("nu_sort").textContent = sort_label(ST.sortKey) + " " +
 		(ST.sortDir > 0 ? "↑" : "↓");
+
+	// the view control sits beside the sort button, and it is repainted in
+	// the draw cycle for the same reason the sort arrow is: both are state,
+	// and a control repainted only by the handler that flipped it drifts the
+	// moment a second door flips the same preference -- and this one has
+	// two, the ... router being the other.
+	var g = pref("nu_grid"), vw = ebi("nu_view");
+	vw.textContent = t(g ? "nu_v_list" : "nu_v_grid");
+	vw.setAttribute("aria-label", t(g ? "nu_v_list_t" : "nu_v_grid_t"));
 }
 
 function sort_label(k) {
@@ -824,6 +856,83 @@ function render_list(shown) {
 	ebi("nu_list").innerHTML = h.join("");
 }
 
+// -- the grid ----------------------------------------------------------
+//
+// the ONE sanctioned exception to "one markup, one renderer"
+// (docs/nu-ui.md:88-92, spec 0002 D5): grid view is a different
+// PRESENTATION of the data, not a different width of the same presentation,
+// so it earns a renderer and nothing else does. three rules keep the
+// exception from spreading:
+//
+// * it is FED, never sourced -- draw() hands it the same filtered() output
+//   render_list gets, so there is one data path, one sort and one filter;
+// * it introduces no second ROW markup. a tile is not a narrow row; the
+//   list's `.nu_row` is untouched by everything below;
+// * draw() stays the single caller, and #nu_list the single container --
+//   after this file there are exactly three writers of that innerHTML.
+//
+// the tile is 114 x 114 (README:144-155) and the geometry lives in nu.css;
+// what is decided here is only which classes the tile carries, because the
+// placeholder fill is per KIND and the extension badge is the same
+// chip_text() the list's type chip is built from -- one source for the
+// word, two boxes for it.
+function render_grid(shown) {
+	var h = [];
+
+	// the same door out the list draws, for the same reason: the header's
+	// #nu_up is the other one, and a view is a preference -- flipping it
+	// must not quietly remove an affordance.
+	if (vpnodes.length > 1) {
+		var up = vpnodes[vpnodes.length - 2];
+		h.push('<a class="nu_tile nu_dir nu_back" href="' +
+			esc(keep(SR + "/" + up[0])) + '">' +
+			'<span class="nu_tb">‹</span>' +
+			'<span class="nu_tk"></span>' +
+			'<span class="nu_tn">' + esc(t("nu_back")) + '</span></a>');
+	}
+
+	for (var a = 0; a < shown.length; a++) {
+		var f = shown[a],
+			d = isdir(f),
+			k = kind_of(f);
+
+		h.push('<a class="nu_tile ' + (d ? "nu_dir" : "nu_file") +
+			(k && k != "dir" ? " nu_k_" + k : "") +
+			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
+			// chip_text() emits a bare entity for "no extension", exactly
+			// as it does for the list's chip, so this is not escaped there
+			// either
+			'<span class="nu_tb">' + chip_text(f) + '</span>' +
+			// the top-right slot card 5's 22px checkbox lands in
+			// (README:151-152). `.nu_tk:empty` is display:none, the same
+			// trick #nu_tools uses, so an unused slot costs no box.
+			'<span class="nu_tk"></span>' +
+			'<span class="nu_tn">' + esc(nm(f)) + '</span></a>');
+	}
+
+	if (!shown.length)
+		h.push('<p class="nu_empty">' +
+			esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
+			'</p>');
+
+	ebi("nu_list").innerHTML = h.join("");
+}
+
+// the view flips two things and they have to move together: the attribute
+// the css bands read, and the renderer draw() picks. apply_prefs owns the
+// attribute -- it is where every presentation preference on <html> is
+// written, and writing it there is also what makes the view survive a
+// reload without a flash of the other one.
+function view_fx() {
+	apply_prefs();
+	draw();
+}
+
+function set_view(v) {
+	setpref("nu_grid", v);
+	view_fx();
+}
+
 function draw() {
 	var shown = filtered();
 	render_stat(shown);
@@ -831,7 +940,10 @@ function draw() {
 	// state, and repainting it in the draw cycle is what keeps the header
 	// and the sheet from drifting out of agreement.
 	render_head();
-	render_list(shown);
+	// the only branch in the file that picks a renderer, and it picks from
+	// the preference rather than from a width: the grid is a view, not a
+	// band, and a resize must never change which of these runs.
+	(pref("nu_grid") ? render_grid : render_list)(shown);
 }
 
 // -- sort sheet --------------------------------------------------------
@@ -1052,6 +1164,17 @@ function act_mkdir() {
 
 var MENU = [
 	["nu_m_here", [
+		// the mirror of the status line's view control -- the same
+		// preference and the same set_view(), never a second toggle. its
+		// meta names the view you are in NOW, so the row reads as the
+		// settings row it is; that answer changes after the table is built,
+		// which is why it is a function returning a key, for the same
+		// reason PREFS' `d` is a function and not a value.
+		["view", "nu_m_view",
+			function () { return pref("nu_grid") ? "nu_v_grid" : "nu_v_list"; },
+			function () { return true; },
+			function () { set_view(!pref("nu_grid")); }],
+
 		["newmd", "nu_m_newmd", null,
 			function () { return !!(perms && perms.indexOf("write") + 1); },
 			null],
@@ -1121,6 +1244,14 @@ function menu_row(k) {
 	return null;
 }
 
+// a row's label and meta are KEYS, and either may be a function returning
+// one. the sheet is re-rendered every time it opens, so a row mirroring a
+// preference can answer with today's word instead of the one the table was
+// built with.
+function mkey(v) {
+	return t(typeof v == "function" ? v() : v);
+}
+
 function render_menu() {
 	var h = [];
 
@@ -1137,8 +1268,8 @@ function render_menu() {
 
 			rows.push('<button type="button" class="nu_mrow" data-m="' +
 				esc(m[0]) + '"' + (m[4] ? "" : " disabled") + '>' +
-				'<span class="nu_mlab">' + esc(t(m[1])) + '</span>' +
-				(m[2] ? '<span class="nu_mmeta">' + esc(t(m[2])) + '</span>' : "") +
+				'<span class="nu_mlab">' + esc(mkey(m[1])) + '</span>' +
+				(m[2] ? '<span class="nu_mmeta">' + esc(mkey(m[2])) + '</span>' : "") +
 				'<span class="nu_mgo">\u203a</span></button>');
 		}
 
@@ -1343,7 +1474,10 @@ var PREF_FX = {
 	dir1st: draw,
 	nsort: draw,
 	thumbs: draw,
-	nu_grid: draw,
+	// the view needs the attribute rewritten before the redraw, not just the
+	// redraw: the container's layout and the column header are css reading
+	// <html>, so a draw() alone would put tiles inside a list container.
+	nu_grid: view_fx,
 	nu_szfmt: draw,
 	nu_dens: apply_prefs,
 	nu_thm: apply_prefs,
@@ -1501,8 +1635,13 @@ function ctx_show(row, x, y) {
 		b.focus();
 }
 
+// `.nu_row, .nu_tile`, not `.nu_row`: CTX reads only `.nu_dir` and the href,
+// and a tile carries both -- so the accelerator follows the view instead of
+// vanishing when the grid is on, which would make it hover-only AND
+// view-only (spec 0002 D2 forbids the first; the second is just a bug).
 function ctx_menu(e) {
-	var r = e.target && e.target.closest ? e.target.closest(".nu_row") : null;
+	var r = e.target && e.target.closest ?
+		e.target.closest(".nu_row, .nu_tile") : null;
 	if (!r)
 		return ctx_hide();
 
@@ -2043,6 +2182,9 @@ function set_dots(v) {
 	ebi("nu_sort").onclick = function () {
 		sheet("nu_sheet", ST.sheet != "nu_sheet");
 	};
+	ebi("nu_view").onclick = function () {
+		set_view(!pref("nu_grid"));
+	};
 	ebi("nu_veil").onclick = function () {
 		if (ST.sheet)
 			sheet(ST.sheet, false);
@@ -2123,7 +2265,11 @@ function set_dots(v) {
 		// is created here. the rows are already <a href> elements, so they
 		// are focusable, Enter is the browser's own activation and needs no
 		// handler, and .focus() does the scrolling.
-		var rows = ebi("nu_list").querySelectorAll(".nu_row");
+		// both renderers, one traversal: a tile is an <a href> exactly like
+		// a row is, so the arrows walk whichever view is on screen. gating
+		// this on `.nu_row` alone would silently kill the keyboard the
+		// moment the view preference flipped.
+		var rows = ebi("nu_list").querySelectorAll(".nu_row, .nu_tile");
 		if (!rows.length)
 			return;
 

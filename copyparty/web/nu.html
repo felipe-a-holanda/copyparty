@@ -52,7 +52,14 @@
 			     out of #nu_acts' flex gap meanwhile, so it costs zero
 			     pixels at every width. no whitespace inside the span, or
 			     :empty stops matching. -->
-			<span id="nu_acts"><span id="nu_tools"></span><button id="nu_sort" type="button"></button></span>
+			<!-- #nu_view is the design's SECOND status-line control
+			     (README:109-111): the sort criterion and then Grade/Lista,
+			     both 12px/500 in accent. it is markup and not a rendered
+			     node for the same reason #nu_sort is -- render_stat only
+			     ever writes its text, so the debounced draw cycle cannot
+			     destroy the button under a finger already on it. its label
+			     is filled by nu.js at the first draw. -->
+			<span id="nu_acts"><span id="nu_tools"></span><button id="nu_sort" type="button"></button><button id="nu_view" type="button"></button></span>
 		</div>
 	</header>
 
