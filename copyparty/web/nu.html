@@ -21,11 +21,14 @@
 			{%- else %}
 			<a id="nu_up" class="nu_hidden" href="#"><span class="nu_chev">&lsaquo;</span><span id="nu_upn"></span></a>
 			{%- endif %}
-			<!-- the nav bar's right slot is deliberately empty: the design
-			     assigns it to Selecionar / Concluir, and the `classic` escape
-			     hatch that used to sit here is now a row in the ... router,
-			     which is where every surface nu has not built yet is reached
-			     from (spec 0001 D1). -->
+			<!-- the nav bar's right slot holds Selecionar / Concluir, and
+			     nu.js appends #nu_selb here at boot rather than the markup
+			     shipping it: it is a door into a MODE, and the two words it
+			     can say come out of the same t() table the mode's own
+			     sel_fx() reads, so the label and the state cannot drift.
+			     the `classic` escape hatch that used to sit here is now a
+			     row in the ... router, which is where every surface nu has
+			     not built yet is reached from (spec 0001 D1). -->
 			<!-- the folder title is also the door to the tree sheet: the
 			     design draws the name with a `▾` after it and opens the
 			     sheet on tap (README:94-95). the h1 keeps the type and the
@@ -170,6 +173,25 @@
 		</header>
 		<div id="nu_cfgb"></div>
 	</section>
+
+	<!-- `Baixar`'s transport, and the reason it is a form and not an XHR:
+	     an xhr would pull the archive into memory and hand the user nothing.
+	     this is the classic UI's own shape (browser.js:8891-8919) --
+	     multipart POST at the folder we are standing in, `act=zip` plus the
+	     selected basenames newline-separated in `files`, opened in a new tab
+	     so the listing behind it survives. handle_zip_post unquotep()s each
+	     line (httpcli.py:3125-3148), so the names go on the wire exactly as
+	     the listing spelled them and a space needs no special case.
+
+	     it lives in the markup rather than being built per click because nu
+	     is servable under a Content-Security-Policy, and a form assembled
+	     from an innerHTML string is what such a policy exists to distrust --
+	     the same reason the grid's onerror is a property. nu.js only ever
+	     writes its `action` and the textarea's value. -->
+	<form id="nu_zip" method="post" enctype="multipart/form-data" target="_blank" hidden>
+		<input type="hidden" name="act" value="zip">
+		<textarea id="nu_zipf" name="files"></textarea>
+	</form>
 
 	<footer id="nu_foot">
 		<span id="nu_srv">{{ srv_info }}</span>

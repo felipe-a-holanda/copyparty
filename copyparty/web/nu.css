@@ -1598,6 +1598,16 @@ button.nu_crow:focus-visible {
 	font-size: 18px;
 }
 
+/* the selection slot set is three equal buttons, so it declares nothing
+   about its box at all -- .nu_act is already `flex: 1` and the navigation
+   set's two exceptions (.nu_a_up's 1.4, .nu_a_more's fixed 48px) name
+   their own keys and cannot reach these. only the destructive one is
+   coloured (README:141-142), and it is the one place --danger is spent. */
+.nu_a_rm {
+	background: var(--danger);
+	color: #fff;
+}
+
 /* aria-disabled and not :disabled -- a disabled button fires no click, and
    this UI's one dead button (upload) exists precisely to be tapped and
    answer with the classic UI. it has to look dead and stay reachable. */

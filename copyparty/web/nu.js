@@ -92,13 +92,20 @@ Ls.eng = {
 	// the header's static text, filled at boot
 	nu_q: "Search in this folder",
 
-	// the action bar, at both of its placements
+	// the action bar, at both of its placements. its selection slot set is
+	// three more rows in the same table shape, and `Baixar` is not a new
+	// string at all -- ctx_dl is the same word, already translated.
 	nu_a_up: "Upload files",
 	nu_a_mkdir: "New folder",
 	nu_a_more: "\u22ef",
 	nu_a_more_t: "More",
 	nu_mk_ask: "name of the new folder:",
 	nu_mk_err: "could not create the folder",
+	nu_a_mv: "Move",
+	nu_a_rm: "Delete",
+	nu_mv_soon: "moving files is not in this UI yet",
+	nu_rm_ask: "delete %?",
+	nu_rm_err: "could not delete",
 
 	// the ... router: two section headers and nine rows
 	nu_m_view: "View",
@@ -784,6 +791,28 @@ function sel_list() {
 	return ret;
 }
 
+// the item's full vpath, DECODED -- and that is not a detail. `?delete`
+// takes real paths and resolves them against the vfs (handle_rm ->
+// up2k._handle_rm -> vfs.get, httpcli.py:6777), while `?zip` takes the
+// url-encoded basename and unquotep()s it itself (:3125-3148). the two
+// endpoints want opposite spellings of the same name, so the file with a
+// space in it is where a single "just send href" would quietly fail.
+// measured against a live server: `["/vol/sp ace &x.txt"]` deletes,
+// `["/vol/sp%20ace%20%26x.txt"]` answers 400 file-not-found.
+//
+// location.pathname is the encoded form, so it is decoded here too; nm()
+// already answers decoded.
+function vp_of(f) {
+	var base = location.pathname;
+	if (base.slice(-1) != "/")
+		base += "/";
+
+	try { base = decodeURIComponent(base); }
+	catch (ex) { }
+
+	return base + nm(f);
+}
+
 function item_by_key(k) {
 	if (!k)
 		return null;
@@ -823,6 +852,11 @@ function sel_fx() {
 		b.textContent = t(ST.selmode ? "nu_seld" : "nu_sel");
 		b.setAttribute("aria-pressed", ST.selmode ? "true" : "false");
 	}
+
+	// the bar swaps slot sets with the mode, and its live gates read the
+	// count -- so it is repainted on every change of the selection, not
+	// only on entering and leaving
+	render_acts();
 
 	draw();
 }
@@ -1637,9 +1671,45 @@ var ACTS = [
 		function () { sheet("nu_menu", true); }]
 ];
 
+// the selection slot set. the SAME component, the same two placements and
+// the same table shape as ACTS -- render_acts picks between them from the
+// mode, so nothing below this line knows there are two, and neither
+// placement gets a string, a class or a handler of its own (spec 0002 D5).
+//
+// `Baixar` reuses ctx_dl, the word 0002's right-click menu already ships
+// translated. `Mover` is DECLARED and dead: one request per selected item,
+// and a folder source is a long abortable server-side walk (up2k.py:4625),
+// so the flow needs progress and cancellation and is deferred -- tapping it
+// says so, which is what the `live` column is for (see ACTS above).
+var SACTS = [
+	["dl", "ctx_dl", null,
+		function () { return !!srvcfg.have_zip; },
+		function () { return sel_n() > 0; },
+		act_dl],
+
+	["mv", "nu_a_mv", null,
+		function () {
+			return !!srvcfg.have_mv && !!(perms && perms.indexOf("move") + 1);
+		},
+		function () { return false; },
+		function () { alert(t("nu_mv_soon")); }],
+
+	["rm", "nu_a_rm", null,
+		// a server started --no-del has have_del false, so the button is
+		// not rendered at all -- not rendered dead. spec 0001 D2's dead
+		// button is for a thing this UI has not built yet; a thing the
+		// SERVER refuses is not a nu gap and must not look like one.
+		function () {
+			return !!srvcfg.have_del && !!(perms && perms.indexOf("delete") + 1);
+		},
+		function () { return sel_n() > 0; },
+		act_rm]
+];
+
 function render_acts() {
 	var el = ebi(CAP.wide ? "nu_tools" : "nu_bar"),
 		off = ebi(CAP.wide ? "nu_bar" : "nu_tools"),
+		acts = ST.selmode ? SACTS : ACTS,
 		h = [];
 
 	// the container that is not the current placement is EMPTIED, never
@@ -1648,8 +1718,8 @@ function render_acts() {
 	// emptied #nu_bar paints no strip of blur at 1440px.
 	off.innerHTML = "";
 
-	for (var a = 0; a < ACTS.length; a++) {
-		var c = ACTS[a], live = false;
+	for (var a = 0; a < acts.length; a++) {
+		var c = acts[a], live = false;
 
 		try { if (!c[3]()) continue; }
 		catch (ex) { continue; }
@@ -1675,10 +1745,92 @@ function act_click(e) {
 	if (!b)
 		return;
 
-	var k = b.getAttribute("data-a");
-	for (var a = 0; a < ACTS.length; a++)
-		if (ACTS[a][0] == k)
-			return ACTS[a][5](b);
+	var k = b.getAttribute("data-a"),
+		acts = ST.selmode ? SACTS : ACTS;
+
+	for (var a = 0; a < acts.length; a++)
+		if (acts[a][0] == k)
+			return acts[a][5](b);
+}
+
+// a FORM, not an xhr: an xhr would pull the archive into memory and hand
+// the user nothing. `POST <vpath>?zip[&k=]`, multipart, target=_blank, with
+// the selected BASENAMES newline-separated -- the classic UI's own shape
+// (browser.js:8891-8919) and what handle_zip_post reads (httpcli.py:3125).
+//
+// the names go on the wire ENCODED, exactly as the listing spelled them,
+// because that end unquotep()s them; vp_of's decoded form is the other
+// endpoint's. a folder in the list is archived recursively, which is what
+// makes one door enough for both kinds of row.
+function act_dl() {
+	var sel = sel_list();
+	if (!sel.length)
+		return;
+
+	// the folder's own dirkey, if we arrived here through one: `?zip` is
+	// gated on the same key the listing was (_use_dirkey), so a dk visitor
+	// who cannot pass it along gets a 403 on a listing they can see.
+	var k = /[?&]k=([^&#]*)/.exec(location.search),
+		txt = [];
+
+	for (var a = 0; a < sel.length; a++)
+		txt.push(sel[a].href.split("?")[0].replace(/\/$/, ""));
+
+	ebi("nu_zip").setAttribute("action",
+		location.pathname + "?zip" + (k ? "&k=" + k[1] : ""));
+
+	ebi("nu_zipf").value = txt.join("\n");
+	ebi("nu_zip").submit();
+}
+
+// ONE request, and that is the decision: the classic UI walks the
+// selection with one POST per file (browser.js:4596-4623) so it can toast
+// per name, and N mis-taps then cost N round trips. `?delete` already
+// takes a LIST -- handle_rm's `req` is the parsed json body
+// (httpcli.py:3190) and up2k.handle_rm loops it server-side -- so nu posts
+// the whole selection once and refreshes.
+//
+// spec 0001 D6: one file swiped away costs two deliberate acts and needs
+// no dialog; N files destroyed by one 48px button do, and the dialog names
+// the count.
+function act_rm() {
+	var sel = sel_list(),
+		n = sel.length;
+
+	if (!n)
+		return;
+
+	var what = n + " " + t(n == 1 ? "nu_item" : "nu_items");
+	try {
+		if (!confirm(t("nu_rm_ask").replace("%", what)))
+			return;
+	}
+	catch (ex) { return; }
+
+	var vps = [];
+	for (var a = 0; a < sel.length; a++)
+		vps.push(vp_of(sel[a]));
+
+	var xhr = new XMLHttpRequest();
+	xhr.open("POST", location.pathname + "?delete", true);
+	// text/plain, not application/json: handle_post_json accepts either
+	// (httpcli.py:2472-2477) and text/plain is not a cors preflight, so a
+	// reverse-proxied deployment has one fewer request to get wrong.
+	xhr.setRequestHeader("Content-Type", "text/plain");
+	xhr.onloadend = function () {
+		if (this.status != 200)
+			return alert(t("nu_rm_err") + " (HTTP " + this.status + ")");
+
+		// out of the mode first: the rows it was holding no longer exist,
+		// and take() prunes what is left of the selection anyway
+		set_sel(false);
+
+		fetch_ls(location.pathname, function (err, ls) {
+			if (!err)
+				take(ls);
+		});
+	};
+	xhr.send(JSON.stringify(vps));
 }
 
 // the same request the classic UI makes (browser.js:8998-9010): multipart
