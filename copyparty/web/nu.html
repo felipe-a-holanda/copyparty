@@ -26,7 +26,20 @@
 			     hatch that used to sit here is now a row in the ... router,
 			     which is where every surface nu has not built yet is reached
 			     from (spec 0001 D1). -->
-			<h1 id="nu_here">{{ vpnodes[-1][1] }}</h1>
+			<!-- the folder title is also the door to the tree sheet: the
+			     design draws the name with a `▾` after it and opens the
+			     sheet on tap (README:94-95). the h1 keeps the type and the
+			     centering, and the button inside it is what carries the hit
+			     area, the ellipsis and the caret -- an <h1> is not a
+			     control, and a click handler on one is a control nothing
+			     can tab to.
+
+			     nu.js disables it wherever the sheet is not the container:
+			     at >= 64em, where the dock is on screen, and on
+			     --ui-notree, where there is no widget at all. the caret
+			     follows that same attribute in nu.css, so the affordance
+			     and the behaviour cannot drift apart. -->
+			<h1 id="nu_here"><button id="nu_hereb" type="button" aria-haspopup="dialog"><span id="nu_heren">{{ vpnodes[-1][1] }}</span><span id="nu_hered" aria-hidden="true">&#9662;</span></button></h1>
 		</div>
 
 		<div id="nu_srch">
@@ -107,6 +120,29 @@
 	<section id="nu_menu" hidden aria-modal="true" role="dialog">
 		<div class="nu_grip"></div>
 		<div id="nu_mopts"></div>
+	</section>
+
+	<!-- the folder-tree sheet: the narrow band's container for the same
+	     widget the dock holds at >= 64em, and a fourth tenant of sheet().
+	     the widget itself is 0002's and is not copied here -- nu.js renders
+	     it into #nu_tshb with the very same render_tree() the dock uses, so
+	     an expanded branch and a marked current folder are one implementation
+	     and not two.
+
+	     it is narrow-only, and that gate is in JS (CAP.wide) rather than in
+	     the markup: up there the dock is already showing this widget, and a
+	     sheet would be a second door to it in the same window.
+
+	     the header is the design's (README:162-164): "Folders" on the left,
+	     the full path on the right, truncated. english here and overwritten
+	     with t() at boot, like every other string nu.html carries. -->
+	<section id="nu_tsh" hidden aria-modal="true" role="dialog" aria-labelledby="nu_tshh">
+		<div class="nu_grip"></div>
+		<div class="nu_shead">
+			<h2 id="nu_tshh">Folders</h2>
+			<span id="nu_tshp" class="nu_hint"></span>
+		</div>
+		<nav id="nu_tshb"></nav>
 	</section>
 
 	<!-- the settings screen. a third tenant of sheet() -- one veil, one

@@ -3,10 +3,10 @@
 //
 // this is the base layer: list, row, navigation, header (search, filter
 // chips, status line), sorting, the action bar, the ... router, the
-// preference layer and the settings screen.
-// selection, swipe, grid, the folder-tree sheet and the image viewer are
-// not here yet -- until they are, the router's `classic UI` row is the door
-// to them.
+// preference layer, the settings screen, the grid and the folder tree in
+// both of its containers.
+// selection, swipe and the image viewer are not here yet -- until they
+// are, the router's `classic UI` row is the door to them.
 //
 // house style, same as the rest of web/: plain ES5-ish JS, no build step,
 // no framework.
@@ -82,6 +82,12 @@ Ls.eng = {
 	nu_v_list: "List",
 	nu_v_grid_t: "Switch to grid view",
 	nu_v_list_t: "Switch to list view",
+
+	// the folder-tree sheet. its heading is `tree_h`, the same key the dock
+	// already labels the widget with -- one word for one thing, in every
+	// language -- so only the two states the dock never shows are new here.
+	nu_tsh_wait: "loading\u2026",
+	nu_tsh_err: "could not load the folder tree",
 
 	// the header's static text, filled at boot
 	nu_q: "Search in this folder",
@@ -1182,7 +1188,8 @@ function render_sheet() {
 var SHEETS = {
 	nu_sheet: render_sheet,
 	nu_menu: render_menu,
-	nu_cfg: render_cfg
+	nu_cfg: render_cfg,
+	nu_tsh: render_tsh
 };
 
 function sheet(id, on) {
@@ -2352,6 +2359,68 @@ function tree_boot() {
 	});
 }
 
+// -- the tree sheet ----------------------------------------------------
+//
+// the narrow band's container for the same widget, and a fourth tenant of
+// sheet(). the widget is NOT rewritten here: render_tree() already takes
+// its container as an argument for exactly this, and ST.tree.expanded and
+// node.kids are shared state -- so a branch opened in the dock is already
+// open when the sheet paints it, at no request, and the current folder is
+// marked by the widget's own TREE_HERE in both.
+
+// the full path, for the header's right-hand side. decoded and with the
+// reverse-proxy prefix already stripped, because it is the same value the
+// widget uses as the current node's identity -- the header and the mark
+// inside it can never disagree.
+function tree_path() {
+	return "/" + TREE_HERE;
+}
+
+// this is the sheet's RENDERER, so sheet() runs it just before the sheet
+// is shown. the path is known immediately; the widget arrives either in
+// the same frame -- the loader has it, because the dock or an earlier open
+// already paid -- or when the one ?tree= this UI ever pays for lands.
+function render_tsh() {
+	ebi("nu_tshp").textContent = tree_path();
+
+	var el = ebi("nu_tshb");
+	if (!ST.tree.root)
+		el.innerHTML = '<p class="nu_empty">' + esc(t("nu_tsh_wait")) + '</p>';
+
+	tree_get(function (err) {
+		if (err)
+			return (el.innerHTML =
+				'<p class="nu_empty">' + esc(t("nu_tsh_err")) + '</p>');
+
+		render_tree(el);
+	});
+}
+
+// the folder title is the sheet's door -- the design's caret
+// (README:94-95) -- and it is a door only where the sheet is the
+// container: at >= 64em the dock is already on screen, and under
+// --ui-notree there is no widget at all.
+//
+// bound the way the context menu is, and `disabled` rather than merely
+// unbound: an unbound button is still in the tab order and still announced
+// as a control. the caret follows the same attribute in css, so the
+// affordance and the behaviour move together.
+function tsh_bind(on) {
+	var b = ebi("nu_hereb");
+	if (!b)
+		return;
+
+	b.disabled = !on;
+	b.onclick = on ? function () {
+		sheet("nu_tsh", ST.sheet != "nu_tsh");
+	} : null;
+
+	// a window dragged past 64em with the sheet open would otherwise leave
+	// it sitting over a layout that has the dock in it too
+	if (!on && ST.sheet == "nu_tsh")
+		sheet("nu_tsh", false);
+}
+
 // THE TREE TRAP. `kids` deliberately survives a collapse (tree_toggle), and
 // ST.tree.root is fetched exactly once behind the loader -- both are caches
 // of an answer the server gave for one value of `dots`. flip the preference
@@ -2373,6 +2442,11 @@ function tree_reset() {
 	var el = ebi("nu_tree");
 	if (el && !el.hidden)
 		tree_boot();
+
+	// the sheet is a container too, and an open one has to be repainted
+	// now rather than the next time it is opened
+	if (ST.sheet == "nu_tsh")
+		render_tsh();
 }
 
 // the whole flip, in one place: the preference, the cookie that only the
@@ -2429,6 +2503,7 @@ function set_dots(v) {
 	ebi("nu_q").placeholder = t("nu_q");
 	ebi("nu_sh2").textContent = t("gt_sort");
 	ebi("nu_shint").textContent = t("nu_s_rev");
+	ebi("nu_tshh").textContent = t("tree_h");
 
 	// the settings screen's two static nodes. its title is the router row's
 	// own key -- the door and the room say the same word, in every language,
@@ -2598,6 +2673,14 @@ function set_dots(v) {
 		else
 			CAP.on("wide", function (v) { if (v) tree_boot(); });
 	}
+
+	// the sheet is the narrow band's container for the widget the dock holds
+	// up there, so the title is a door only below 64em -- and never at all
+	// when have_tree() says there is nothing to open. CAP re-reads the query
+	// on change, so a window dragged across the band gains and loses the
+	// door without a reload, and loses the open sheet with it.
+	tsh_bind(!CAP.wide && have_tree());
+	CAP.on("wide", function (v) { tsh_bind(!v && have_tree()); });
 
 	// the right-click menu is a mouse affordance, so the listener is
 	// installed only where there is a mouse -- and removed again the moment

@@ -251,6 +251,59 @@ a {
 	text-align: center;
 }
 
+/* the folder title is a control below 64em: it opens the tree sheet. the
+   h1 keeps the type, the centering and the truncation of the row; the
+   button inside it is the hit area. its height is the h1's own line-height
+   so the nav row does not grow by a pixel, and `vertical-align: top` keeps
+   the line box exactly that tall. */
+#nu_hereb {
+	display: inline-flex;
+	align-items: center;
+	vertical-align: top;
+	gap: 4px;
+	max-width: 100%;
+	height: 44px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	letter-spacing: inherit;
+	line-height: 1;
+	cursor: pointer;
+}
+
+#nu_hereb:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+	border-radius: 8px;
+}
+
+#nu_heren {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_hered {
+	flex: 0 0 auto;
+	font-size: 11px;
+	font-weight: 400;
+	color: var(--fg4);
+}
+
+/* nu.js disables the button wherever the sheet is not the container -- at
+   >= 64em, where the dock is, and on --ui-notree, where there is no widget
+   at all. the caret is the affordance for a tap, so it goes with it: one
+   attribute, and the title is a plain heading again. */
+#nu_hereb[disabled] {
+	cursor: default;
+}
+
+#nu_hereb[disabled] #nu_hered {
+	display: none;
+}
+
 #nu_srch {
 	display: flex;
 	align-items: center;
@@ -713,7 +766,8 @@ a {
    transition, one shadow and one set of band overrides to keep honest --
    which is the whole reason sheet() stopped hardcoding an element id. */
 #nu_sheet,
-#nu_menu {
+#nu_menu,
+#nu_tsh {
 	position: fixed;
 	left: 0;
 	right: 0;
@@ -730,7 +784,8 @@ a {
 }
 
 #nu_sheet.on,
-#nu_menu.on {
+#nu_menu.on,
+#nu_tsh.on {
 	transform: translateY(0);
 }
 
@@ -748,6 +803,7 @@ a {
 	#nu_veil,
 	#nu_sheet,
 	#nu_menu,
+	#nu_tsh,
 	#nu_cfg,
 	.nu_tgl,
 	.nu_tgl .nu_knob,
@@ -1265,6 +1321,58 @@ button.nu_crow:focus-visible {
 	}
 }
 
+/* ---- the tree sheet ----
+
+   the widget's OTHER container, and only the container: every node rule
+   above is shared with the dock and none of it is copied down here. what
+   belongs to the sheet is its box, the scroll inside it, and the touch
+   sizing -- a 26px row is a mouse's row, and this container is only ever
+   reached by a finger. */
+
+#nu_tsh {
+	max-height: 600px;
+}
+
+/* the sheet's header already says "Folders", so the widget's own heading
+   would be the same word twice, twelve pixels apart. the widget keeps it,
+   because the dock has no header of its own, and the container drops it. */
+#nu_tshb .nu_th {
+	display: none;
+}
+
+/* the full path, against the right edge of the header and truncated at
+   200px (README:163-164) */
+#nu_tshp {
+	flex: 0 1 auto;
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_tshb .nu_tn {
+	min-height: 46px;
+}
+
+#nu_tshb .nu_tw {
+	width: 26px;
+	height: 46px;
+	font-size: 12px;
+}
+
+#nu_tshb .nu_tl {
+	padding: 8px;
+	border-radius: 10px;
+	font-size: 15px;
+	font-weight: 500;
+}
+
+/* on the LINK and not on the node: the node is the <li>, so an expanded
+   branch would tint its whole subtree with it */
+#nu_tshb .nu_tcur > .nu_tl {
+	background: var(--sel);
+}
+
 /* ---- context menu ---- */
 
 /* there is deliberately NO width query and no capability query on this
@@ -1419,7 +1527,8 @@ button.nu_crow:focus-visible {
 	}
 
 	#nu_sheet,
-	#nu_menu {
+	#nu_menu,
+	#nu_tsh {
 		left: 50%;
 		transform: translate(-50%, 110%);
 		width: 460px;
@@ -1428,7 +1537,8 @@ button.nu_crow:focus-visible {
 	}
 
 	#nu_sheet.on,
-	#nu_menu.on {
+	#nu_menu.on,
+	#nu_tsh.on {
 		transform: translate(-50%, 0);
 	}
 }
@@ -1587,6 +1697,15 @@ button.nu_crow:focus-visible {
 		align-self: start;
 		max-height: calc(100vh - var(--head-h));
 		overflow-y: auto;
+	}
+
+	/* the tree sheet is narrow-only, and this says so in css as well as in
+	   js: up here the dock is the container, and a sheet would be a second
+	   door to the same widget in the same window. nu.js disables its door
+	   and closes it on the way up -- this is the belt to that pair of
+	   braces, so a sheet left open by any path cannot paint here. */
+	#nu_tsh {
+		display: none;
 	}
 
 	/* the sort sheet is a modal, and it is centered in both non-phone bands */
