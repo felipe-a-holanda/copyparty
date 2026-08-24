@@ -622,6 +622,32 @@ a {
 	color: #fff;
 }
 
+/* ---- pull to refresh ---- */
+
+/* a strip that GROWS at the top of #nu_main, from a height of 0 -- so it
+   pushes the list down by exactly its own height and there is nothing to
+   undo when the gesture is abandoned. nu.js mounts it, and only under a
+   coarse pointer.
+
+   no transition on the height: while the finger is down the strip has to
+   be where the finger is, and the release is a state change (48px, then 0)
+   that a .22s spring would only blur.
+
+   the browser's OWN overscroll is the competition here -- on android
+   chrome that is a second pull-to-refresh, firing over this one -- and it
+   is already dealt with: `body` carries `overscroll-behavior-y: none` at
+   every width. nothing is added for it here; gst_move's preventDefault is
+   the belt for the platforms that property does not reach. */
+#nu_pull {
+	height: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	font: 500 12px var(--font);
+	color: var(--fg2);
+}
+
 /* ---- the selection checkbox ----
 
    the CONTAINER is what animates, 0 -> 30px (README:117-119), and not the

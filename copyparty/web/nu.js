@@ -115,6 +115,11 @@ Ls.eng = {
 	ctx_link: "Copy link",
 	nu_cp_ask: "copy this link:",
 
+	// pull-to-refresh: the three states of one strip
+	nu_pl_pull: "Pull to refresh",
+	nu_pl_go: "Release to refresh",
+	nu_pl_busy: "Refreshing…",
+
 	// the ... router: two section headers and nine rows
 	nu_m_view: "View",
 	nu_m_here: "In this folder",
@@ -1174,7 +1179,89 @@ var SW_STEP = 84,	// one button (README:244)
 var SW = { row: null, k: null, max: 0, dx: 0, from: 0, open: null };
 
 // `ax` is 0 until the lock, then 1 horizontal / 2 vertical
-var GST = { x: 0, y: 0, ax: 0 };
+// `top` is answered ONCE, at touchstart: the pull is a thing you start at
+// the top of the list, and re-asking mid-gesture would let a flick that
+// coasted to the top turn into one halfway through.
+var GST = { x: 0, y: 0, ax: 0, top: false };
+
+var PULL_MAX = 72,		// the cap on the strip (README:246)
+	PULL_TRIP = 48,	// past this the label flips, and a release refreshes
+	PULL_HOLD = 900,	// the floor the "Refreshing…" state is held for
+	PULL_RATE = 0.5;	// the finger travels twice as far as the strip
+
+var PULL = { on: false, d: 0, busy: false };
+
+function scroll_y() {
+	if (typeof window.pageYOffset == "number")
+		return window.pageYOffset;
+
+	var de = document.documentElement;
+	return (de && de.scrollTop) || (document.body && document.body.scrollTop) || 0;
+}
+
+// the strip is the FIRST child of #nu_main and it grows from 0, so it
+// pushes the list down exactly as far as it is tall -- no transform, no
+// second scroller, and nothing to undo if the gesture is abandoned.
+var PULL_EL = null;
+
+function pull_el() {
+	if (PULL_EL)
+		return PULL_EL;
+
+	var el = document.createElement("div"),
+		m = ebi("nu_main");
+
+	el.id = "nu_pull";
+	m.insertBefore(el, m.firstChild);
+	return (PULL_EL = el);
+}
+
+function pull_fx(d, key) {
+	var el = pull_el();
+	PULL.d = d;
+	el.style.height = d + "px";
+	el.textContent = key ? t(key) : "";
+}
+
+function pull_up() {
+	PULL.on = false;
+
+	if (PULL.d <= PULL_TRIP)
+		return pull_fx(0, null);
+
+	// the 900ms is a FLOOR, not a delay. a LAN answers in single-digit
+	// milliseconds, and a strip that appears and vanishes inside one frame
+	// does not read as a refresh -- it reads as a glitch (README:246). so
+	// both clocks run at once and the strip leaves when the LATER one is
+	// done, which costs a slow server nothing.
+	PULL.busy = true;
+	pull_fx(PULL_TRIP, "nu_pl_busy");
+
+	var ls = null, n = 0;
+
+	function fin() {
+		if (++n < 2)
+			return;
+
+		PULL.busy = false;
+		pull_fx(0, null);
+
+		// a failed refresh leaves the listing that is on screen alone: the
+		// rows are still true, and blanking them would punish a dropped
+		// packet with an empty folder
+		if (ls)
+			take(ls);
+	}
+
+	fetch_ls(location.pathname, function (err, r) {
+		if (!err)
+			ls = r;
+
+		fin();
+	});
+
+	setTimeout(fin, PULL_HOLD);
+}
 
 // the track is created once and moved, never re-emitted per row: #nu_list
 // is rewritten wholesale on every draw, so per-row markup would repaint
@@ -1283,6 +1370,7 @@ function gst_down(e) {
 
 	GST.x = tt.clientX;
 	GST.y = tt.clientY;
+	GST.top = scroll_y() <= 0;
 }
 
 function gst_move(e) {
@@ -1317,6 +1405,31 @@ function gst_move(e) {
 			SW.max = sw_place(SW.row);
 			SW.row.classList.add("nu_drag");
 		}
+		// DOWNWARDS and from the top of the list, and only those two -- a
+		// drag from mid-list is the scroll the browser is already doing,
+		// and an upwards one at the top is the same scroll in the other
+		// direction. a refresh already running claims nothing.
+		else if (GST.top && dy > 0 && !PULL.busy) {
+			PULL.on = true;
+			// the list is about to be redrawn under it
+			sw_close();
+		}
+	}
+
+	if (GST.ax == 2) {
+		if (!PULL.on)
+			return;
+
+		// the reason this listener is not passive. `body` already carries
+		// `overscroll-behavior-y: none`, which is what actually stops
+		// chrome's own pull-to-refresh from firing over this one; this is
+		// the belt for the platforms that property does not reach, and it
+		// costs nothing on every gesture that is not a pull.
+		if (e.cancelable !== false && e.preventDefault)
+			e.preventDefault();
+
+		return pull_fx(Math.min(dy * PULL_RATE, PULL_MAX),
+			dy * PULL_RATE > PULL_TRIP ? "nu_pl_go" : "nu_pl_pull");
 	}
 
 	if (GST.ax != 1 || !SW.row)
@@ -1334,6 +1447,9 @@ function gst_up() {
 
 	SW.row = null;
 	GST.ax = 0;
+
+	if (PULL.on)
+		return pull_up();
 
 	// a gesture that locked VERTICAL never touched this row's transform, so
 	// it must not decide anything about it -- least of all close a track
@@ -1365,11 +1481,14 @@ function gst_bind(on) {
 	var el = ebi("nu_main");
 
 	if (on) {
-		// passive, all three: the swipe needs no preventDefault at all --
-		// `touch-action: pan-y` in nu.css is what stops the sideways pan,
-		// declaratively and off the main thread.
+		// the swipe needs no preventDefault at all -- `touch-action: pan-y`
+		// in nu.css is what stops the sideways pan, declaratively and off
+		// the main thread. the PULL does need one, and a listener cannot
+		// ask for the right to preventDefault after the fact, so touchmove
+		// is the one that is not passive. it spends it on nothing until a
+		// pull is actually engaged.
 		el.addEventListener("touchstart", gst_down, { passive: true });
-		el.addEventListener("touchmove", gst_move, { passive: true });
+		el.addEventListener("touchmove", gst_move, { passive: false });
 		el.addEventListener("touchend", gst_up, { passive: true });
 		el.addEventListener("touchcancel", gst_up, { passive: true });
 	}
@@ -1380,7 +1499,13 @@ function gst_bind(on) {
 		el.removeEventListener("touchcancel", gst_up);
 		SW.row = null;
 		GST.ax = 0;
+		PULL.on = false;
 		sw_close();
+
+		// only if it was ever built: a window that has never been coarse
+		// gets no strip out of being told it is not coarse now
+		if (PULL_EL)
+			pull_fx(0, null);
 	}
 }
 
