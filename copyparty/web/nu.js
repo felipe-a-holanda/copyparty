@@ -152,9 +152,15 @@ Ls.eng = {
 	nu_c_out: "Log out",
 	nu_c_soon: "not in this UI yet",
 
-	// selection mode: the nav bar's toggle, and the two states it names
+	// selection mode: the nav bar's toggle, the two states it names, and
+	// the status line's two operators
 	nu_sel: "Select",
 	nu_seld: "Done",
+	nu_nsel: "selected",
+	nu_selall: "All",
+	nu_selinv: "Invert",
+	nu_selall_t: "Select everything the filter is showing",
+	nu_selinv_t: "Invert the selection over what the filter is showing",
 
 	// the status line and a folder's own count
 	nu_item: "item",
@@ -848,6 +854,31 @@ function sel_range(f) {
 		sel_set(shown[a], st);
 }
 
+// the status line's two operators, and they work on filtered() -- never on
+// ST.items. the design puts them one line under the filter chips and the
+// search box (README:108-111), so a `Tudo` that reached past what the user
+// can see would select rows they filtered out on purpose. what is already
+// marked outside the filter is left exactly as it was.
+
+function sel_all() {
+	var shown = filtered();
+	for (var a = 0; a < shown.length; a++)
+		sel_set(shown[a], true);
+
+	// the anchor follows the last thing touched, so a shift-click after a
+	// select-all extends from the end of the run and not from nowhere
+	ST.selanchor = shown.length ? nm(shown[shown.length - 1]) : null;
+	sel_fx();
+}
+
+function sel_inv() {
+	var shown = filtered();
+	for (var a = 0; a < shown.length; a++)
+		sel_set(shown[a], !sel_has(shown[a]));
+
+	sel_fx();
+}
+
 // the delegated click on #nu_list, installed at every width and on every
 // pointer -- it is what makes a checkbox a control inside an <a href>.
 //
@@ -1009,6 +1040,30 @@ function render_chips() {
 }
 
 function render_stat(shown) {
+	var srt = ebi("nu_sort"), vw = ebi("nu_view");
+
+	// selection mode relabels THESE TWO NODES and adds none of its own: the
+	// design swaps the whole status line's contents (README:108-111), and a
+	// second pair of buttons would have to be hidden, kept in sync and
+	// placed twice -- once here and once in the wide band's grid, where
+	// this row is the second column beside #nu_tools. #nu_sort keeps its
+	// place in that row at both widths either way.
+	if (ST.selmode) {
+		ebi("nu_count").textContent = sel_n() + " " + t("nu_nsel");
+
+		srt.textContent = t("nu_selall");
+		srt.setAttribute("aria-label", t("nu_selall_t"));
+
+		vw.textContent = t("nu_selinv");
+		vw.setAttribute("aria-label", t("nu_selinv_t"));
+		return;
+	}
+
+	// and the labels come back off again on the way out, or a screen reader
+	// would read "Sort by name" as "select everything" for the rest of the
+	// session
+	srt.removeAttribute("aria-label");
+
 	var sz = 0, n = shown.length;
 	for (var a = 0; a < shown.length; a++)
 		if (!isdir(shown[a]))
@@ -1017,7 +1072,7 @@ function render_stat(shown) {
 	var word = t(n == 1 ? "nu_item" : "nu_items");
 	ebi("nu_count").textContent = n + " " + word + (sz ? " · " + humansize(sz) : "");
 
-	ebi("nu_sort").textContent = sort_label(ST.sortKey) + " " +
+	srt.textContent = sort_label(ST.sortKey) + " " +
 		(ST.sortDir > 0 ? "↑" : "↓");
 
 	// the view control sits beside the sort button, and it is repainted in
@@ -1025,7 +1080,7 @@ function render_stat(shown) {
 	// and a control repainted only by the handler that flipped it drifts the
 	// moment a second door flips the same preference -- and this one has
 	// two, the ... router being the other.
-	var g = pref("nu_grid"), vw = ebi("nu_view");
+	var g = pref("nu_grid");
 	vw.textContent = t(g ? "nu_v_list" : "nu_v_grid");
 	vw.setAttribute("aria-label", t(g ? "nu_v_list_t" : "nu_v_grid_t"));
 }
@@ -2883,10 +2938,19 @@ function set_dots(v) {
 	lp_bind(CAP.coarse);
 	CAP.on("coarse", function (v) { lp_bind(v); });
 
+	// one node, two jobs, and the mode is what picks: the labels these two
+	// wear are written by render_stat in the same branch, so what the
+	// button says and what it does cannot come apart.
 	ebi("nu_sort").onclick = function () {
+		if (ST.selmode)
+			return sel_all();
+
 		sheet("nu_sheet", ST.sheet != "nu_sheet");
 	};
 	ebi("nu_view").onclick = function () {
+		if (ST.selmode)
+			return sel_inv();
+
 		set_view(!pref("nu_grid"));
 	};
 	ebi("nu_veil").onclick = function () {
