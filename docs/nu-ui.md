@@ -118,6 +118,74 @@ laptop, and which `nu` could not see anyway since it never loads `util.js`.
 The context menu is an accelerator for the row's actions, never their only
 door.
 
+### what the wide band has
+
+Spec/plan 0002 built **four** things, and they are all of them:
+
+1. **the tree dock** -- `#nu_tree`, the left column at `>= 64em`, reading
+   `?tree=` and expanding lazily. It is opt-in in CSS: the 16em track is
+   declared only under `#nu_shell[data-tree="1"]`, which `nu.js` writes when
+   the dock actually renders, so `--ui-notree` leaves no empty gutter. Note
+   what it roots at: the **shallowest legal non-empty ancestor** -- the first
+   path component -- not the server's true root. `?tree=` only returns the
+   ancestor-chain `k*` keys when `top` is a strict ancestor, and the only
+   value naming the true root is the blank form, which the server wraps once
+   per component of `args.R` under `-R` and is therefore unusable. Top-level
+   siblings are not shown in this cut.
+2. **the columns** -- name/size/date, plus type at `>= 80em`, as a grid on
+   `.nu_row` (not on `#nu_list`, which would need `display: contents` on the
+   rows and would destroy their background, border, hover and focus ring).
+   The tracks live in `--nu-cols` so the header has one definition to copy.
+3. **the column header** -- `#nu_head`, a sibling of `#nu_list` and never a
+   child (`#nu_list` is `aria-live`), whose labels are a **second door to
+   the same `pick_sort()`** the sort sheet drives. The sheet and its
+   `#nu_sort` button stay at every width; the header does not replace them.
+4. **desktop input on the surfaces that exist** -- row hover, focus rings,
+   arrow/Home/End traversal with a typing guard, Enter as the browser's own
+   activation of an `<a href>`, Escape, and the right-click menu rendered
+   from the `CTX` table under `--ui-noctxb` and `CAP.on("fine")`.
+
+### what the wide band still owes
+
+Also **five** things, none of which 0002 built, all of which the wide band
+needs before it is finished:
+
+1. **selection** -- `nu` has no selection state at all. The checkbox is a
+   permanent column at `>= 64em`, never a hover reveal, and shift/ctrl act
+   on the checkbox (the row is an `<a href>`; a plain click must navigate).
+2. **the action bar's wide placement** -- the slot is declared and empty:
+   `#nu_tools`, in the status line beside `#nu_sort`. The contract on it is
+   that the bar is **one component with two placements** -- this slot at
+   `>= 64em`, the fixed bottom bar below it -- not a second bar with its own
+   strings.
+3. **the full keyboard map** -- what exists is list traversal, not a map;
+   whoever adds one must also settle who owns `keydown` while an overlay is
+   open, since traversal sits on a document-level listener.
+4. **drag & drop upload** -- and upload generally; see *what is NOT built
+   yet* below.
+5. **mtp tag columns** -- the columns are the four fixed fields the listing
+   already carries. Tag columns need the sort keys revisited too: `sorted()`
+   still orders folders by `f.sz`, which is ~4096 wherever the recursive
+   size was never filled.
+
+There is also **no i18n wiring yet**. 0002 landed a `STR` table and a `t(k)`
+shim in `nu.js` and routed every string it added through `t()`; lifting
+`STR` into `Ls.eng` and replacing the shim's body with a per-key fallback is
+0001 card 1's job. Until then a string added anywhere in `nu` goes in `STR`
+and through `t()` -- not as a literal, which is the retrofit that ordering
+exists to avoid.
+
+### the ordering, so it is not re-derived
+
+0002 (this contract) lands **first**; `docs/plans/0001-nu-the-rest-of-the-mobile-design.md`
+is then re-planned **against this tree**. It is mechanical, not a
+preference: both plans edit `nu.js`, `nu.css` and `nu.html` in every card,
+so they cannot run in parallel, and 0001 was written against a single
+viewport (390x844) at a time when it also owned the tree reader and the
+i18n helper. The plan's *"What 0002 obliges 0001 to honor"* section is the
+pendency list that re-plan consumes, card by card. Do not implement a 0001
+card straight from the old plan.
+
 ## data contract
 
 `ls0` is embedded in the HTML by the `is_js` branch of httpcli, so the first
