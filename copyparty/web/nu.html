@@ -35,7 +35,16 @@
 
 		<div id="nu_stat">
 			<span id="nu_count"></span>
-			<span id="nu_acts"><button id="nu_sort" type="button"></button></span>
+			<!-- #nu_tools is the wide placement of 0001 card 1's action
+			     bar: spec 0002 D5 says that bar is ONE component with two
+			     placements -- rendered into this slot at >= 64em and into
+			     the fixed bottom bar below it -- and NOT a second bar with
+			     its own strings and its own i18n keys. empty and inert
+			     until that card lands; #nu_tools:empty in nu.css keeps it
+			     out of #nu_acts' flex gap meanwhile, so it costs zero
+			     pixels at every width. no whitespace inside the span, or
+			     :empty stops matching. -->
+			<span id="nu_acts"><span id="nu_tools"></span><button id="nu_sort" type="button"></button></span>
 		</div>
 	</header>
 
