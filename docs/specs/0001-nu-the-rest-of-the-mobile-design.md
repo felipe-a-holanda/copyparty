@@ -22,13 +22,18 @@ par: "[[plans/0001-nu-the-rest-of-the-mobile-design|plan]]"
 > swipe actions, pull-to-refresh, the image viewer, and recursive search. It does
 > **not** build upload, which gets its own spec.
 
-**Status:** planejado — spec only. What exists in the tree today is the base layer
-(`web/nu.js:1-466`, `web/nu.css`, `web/nu.html`); there is no bottom bar, no `⋯`, no
-settings screen, no grid, no tree sheet, no selection, no swipe, no viewer, and the
-search box filters the current folder client-side (`filtered()`, `web/nu.js:209`).
-Every preference the design offers is hardcoded: `dir1st = true` (`web/nu.js:173`),
-one size format (`humansize()`, `:75`), no dotfile toggle. `/planc` mirrors this
-number.
+**Status:** planejado — plan written, and **re-planned against `decdcbca`** once
+spec 0002 landed. What exists in the tree today is the base layer plus 0002's width
+work (`web/nu.js`, `web/nu.css`, `web/nu.html`): three bands over one markup, the
+field-split row and its column grid, the column header, the `?tree=` reader with its
+wide dock, and desktop input. There is still no bottom bar, no `⋯`, no settings
+screen, no grid, no tree sheet, no selection, no swipe and no viewer, and the search
+box filters the current folder client-side (`filtered()`, `web/nu.js:328`). Every
+preference the design offers is hardcoded: `dir1st = true` (`web/nu.js:292`), one size
+format (`humansize()`, `:112`), no dotfile toggle. Two things this spec listed as its
+own arrived early with 0002 and are no longer owed here: the `?tree=` **widget** (0002
+§D3 — only its sheet wrapper remains) and the `cgv1` template binding. The plan
+(`docs/plans/0001-nu-the-rest-of-the-mobile-design.md`) mirrors this number.
 
 ---
 
