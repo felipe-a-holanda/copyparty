@@ -2273,23 +2273,79 @@ function tree_dock(el) {
 	ebi("nu_shell").setAttribute("data-tree", "1");
 }
 
-// the dock fetches when it FIRST becomes visible, not at boot: a phone
-// that never widens must not pay a ?tree= roundtrip, and the one request a
-// resize past 64em triggers is the correct price. once, behind a flag --
-// set before the request, so flapping across the breakpoint cannot start
-// a second one.
-var tree_lit = false;
+// --ui-notree has meant "hide navpane in the UI" since __main__.py's 2026,
+// and it suppresses EVERY container of this widget, not just the dock. the
+// key is in js_htm only when the volflag is truthy (authsrv.py:3338-3341),
+// so a plain truthiness read is the whole gate -- and it sits in front of
+// the LOADER as well as in front of each mount: with nothing on screen to
+// paint it into, a ?tree= is a roundtrip nobody will ever read.
+function have_tree() {
+	return !srvcfg.ui_notree;
+}
 
-function tree_boot() {
-	if (tree_lit)
+// ONE fetch, N containers. the dock and 0001 card 4's bottom sheet are two
+// mounts of the same widget and either of them can be the first to ask for
+// it, so "has the tree been fetched" stopped being the same question as
+// "is the dock rendered" -- which is the only one a single `tree_lit` flag
+// could answer, and it answered it for the dock. a sheet opened at phone
+// width would have set that flag, and a later resize past 64em would then
+// find tree_boot() returning early: the tree in memory, and no dock on
+// screen, forever.
+//
+// so the flag is gone and the cache is the state -- ST.tree.root once the
+// answer is here, `tree_wait` while it is on its way. a caller arriving
+// during the request queues on it instead of starting a second one, which
+// is what holds flapping across the breakpoint (and a double tap on the
+// folder title) to exactly one ?tree=.
+var tree_wait = null,
+	// bumped by tree_reset. an answer already in flight when the dots
+	// preference flips is an answer to the OLD question, and letting it
+	// land in the new tree is precisely the trap tree_reset exists to
+	// close -- the flag it used to clear could not express "and throw away
+	// the request I cannot cancel".
+	tree_gen = 0;
+
+function tree_get(cb) {
+	if (!have_tree())
 		return;
 
-	tree_lit = true;
+	// synchronous when the answer is already here, so a second container
+	// mounting the widget paints in the same frame it was asked to
+	if (ST.tree.root)
+		return cb(null, ST.tree.root);
+
+	if (tree_wait)
+		return tree_wait.push(cb);
+
+	tree_wait = [cb];
+	var gen = tree_gen;
+
 	tree_first(function (err, root) {
-		if (err)
+		if (gen !== tree_gen)
 			return;
 
-		ST.tree.root = root;
+		var q = tree_wait;
+		tree_wait = null;
+
+		if (!err)
+			ST.tree.root = root;
+
+		for (var a = 0; a < q.length; a++)
+			q[a](err, root);
+	});
+}
+
+// the dock's MOUNT: the loader's answer, render_tree, and then the dock's
+// own second half -- the 16em track. it fetches when the dock FIRST becomes
+// visible and not at boot, because a phone that never widens must not pay a
+// ?tree= roundtrip, and the one request a resize past 64em triggers is the
+// correct price -- unless the sheet has already paid it, in which case the
+// loader answers from cache and no request is made at all.
+function tree_boot() {
+	tree_get(function (err, root) {
+		if (err || !root)
+			return;
+
 		var el = ebi("nu_tree");
 		render_tree(el);
 		tree_dock(el);
@@ -2297,19 +2353,22 @@ function tree_boot() {
 }
 
 // THE TREE TRAP. `kids` deliberately survives a collapse (tree_toggle), and
-// ST.tree.root is fetched exactly once behind tree_lit -- both are caches of
-// an answer the server gave for one value of `dots`. flip the preference and
-// every branch already loaded keeps painting the old answer, while a branch
-// opened afterwards paints the new one, in the same tree, at the same time.
+// ST.tree.root is fetched exactly once behind the loader -- both are caches
+// of an answer the server gave for one value of `dots`. flip the preference
+// and every branch already loaded keeps painting the old answer, while a
+// branch opened afterwards paints the new one, in the same tree, at the same
+// time.
 //
-// so the flip throws all three away: the root, the open/closed map, and the
-// once-only flag. nothing here re-renders on its own -- it re-runs the MOUNT
-// for whichever container is currently showing the widget, which today is the
-// dock and from card 4 is also the bottom sheet.
+// so the flip throws all of it away: the root, the open/closed map, the queue
+// of callers waiting on a request whose answer is now stale, and (via the
+// generation) the request itself. nothing here re-renders on its own -- it
+// re-runs the MOUNT for whichever container is currently showing the widget,
+// which today is the dock and from card 4 is also the bottom sheet.
 function tree_reset() {
 	ST.tree.root = null;
 	ST.tree.expanded = {};
-	tree_lit = false;
+	tree_wait = null;
+	tree_gen++;
 
 	var el = ebi("nu_tree");
 	if (el && !el.hidden)
@@ -2524,18 +2583,16 @@ function set_dots(v) {
 		rows[nxt].focus();
 	});
 
-	// --ui-notree has meant "hide navpane in the UI" since __main__.py's
-	// 2026, and nu is the first UI that could not see it. the key is in
-	// js_htm only when the volflag is truthy (authsrv.py:3338-3341), so a
-	// plain truthiness read is the whole gate -- and it sits here, above
-	// the subscription, so the dock is neither rendered nor fetched and
-	// #nu_shell never gets its data-tree.
+	// have_tree() is the --ui-notree gate (see it for why a truthiness read
+	// is the whole of it), and it sits here, above the subscription, so the
+	// dock is neither rendered nor fetched and #nu_shell never gets its
+	// data-tree.
 	//
 	// otherwise the dock is a wide-band surface, so the widget is only
 	// ever built once the band is actually entered -- at boot if we start
 	// there, and otherwise on the first crossing. CAP re-reads the query
 	// on change, so a window dragged wider gets its dock without a reload.
-	if (!srvcfg.ui_notree) {
+	if (have_tree()) {
 		if (CAP.wide)
 			tree_boot();
 		else
