@@ -785,10 +785,89 @@ a {
 	outline-offset: -2px;
 }
 
+/* ---- the action bar ----
+
+   ONE component with two placements (spec 0002 D5): the fixed bar below
+   64em, and the #nu_tools slot in the status line at and above it. nu.js
+   renders the same buttons into whichever container the band calls for and
+   empties the other, so both placements style one set of classes and there
+   is no second bar to keep in sync.
+
+   which container is decided in JS, from CAP.wide, and the visibility rule
+   here keys on CONTENT and not on a width query. a media query would be a
+   second opinion about the same question, and the day the two disagreed it
+   would either paint an empty strip of blur across a 1440px window or hide
+   a bar that JS had just filled. */
+#nu_bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	/* above the sticky header (3), below the veil (8): a sheet's veil has
+	   to dim the bar, and the list has to scroll under it. */
+	z-index: 7;
+	display: flex;
+	gap: 8px;
+	/* the bar owns the safe-area inset, because it is the thing actually
+	   sitting on the home indicator */
+	padding: 8px 12px calc(22px + env(safe-area-inset-bottom));
+	background: var(--foot-bg);
+	-webkit-backdrop-filter: blur(12px);
+	backdrop-filter: blur(12px);
+	border-top: 1px solid var(--line);
+}
+
+#nu_bar:empty {
+	display: none;
+}
+
+.nu_act {
+	flex: 1;
+	min-height: 48px;
+	padding: 0 10px;
+	border: 0;
+	border-radius: 14px;
+	background: var(--fill);
+	color: var(--fg);
+	font: 500 14px var(--font);
+	cursor: pointer;
+}
+
+.nu_a_up {
+	flex: 1.4;
+	background: var(--accent);
+	color: var(--on-accent);
+	font: 600 15px var(--font);
+}
+
+.nu_a_more {
+	flex: 0 0 48px;
+	padding: 0;
+	font-size: 18px;
+}
+
+/* aria-disabled and not :disabled -- a disabled button fires no click, and
+   this UI's one dead button (upload) exists precisely to be tapped and
+   answer with the classic UI. it has to look dead and stay reachable. */
+.nu_act[aria-disabled="true"] {
+	opacity: .55;
+}
+
+.nu_act:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
 /* ---- footer ---- */
 
+/* the fixed bar covers the bottom of the page, and #nu_foot is what is
+   under it: #nu_foot is a sibling AFTER #nu_shell, so #nu_main's own
+   padding-bottom clears nothing at all. 93px is the bar's box -- 8 + 48 +
+   22 + 1px border -- plus the footer's own 14px of air; the inset is here
+   because the bar adds it to its own height. the wide band takes it back
+   off, where there is no fixed bar to clear. */
 #nu_foot {
-	padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+	padding: 14px 18px calc(93px + env(safe-area-inset-bottom));
 	font-size: 11px;
 	color: var(--fg2);
 	text-align: center;
@@ -929,6 +1008,31 @@ a {
 		display: flex;
 		align-items: center;
 		gap: 12px;
+	}
+
+	/* the same buttons, compact: 48px is a finger metric and this is a
+	   12px row of chrome beside a 12px sort button. only the box changes --
+	   no colour, no label and no handler is re-declared here. */
+	#nu_tools .nu_act {
+		flex: 0 0 auto;
+		min-height: 28px;
+		padding: 0 10px;
+		border-radius: 8px;
+		font: 500 12px var(--font);
+	}
+
+	#nu_tools .nu_a_up {
+		font-weight: 600;
+	}
+
+	#nu_tools .nu_a_more {
+		padding: 0 8px;
+		font-size: 14px;
+	}
+
+	/* no fixed bar up here, so the footer has nothing to clear */
+	#nu_foot {
+		padding-bottom: calc(14px + env(safe-area-inset-bottom));
 	}
 
 	#nu_shell {

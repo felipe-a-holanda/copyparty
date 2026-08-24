@@ -91,6 +91,19 @@
 		<span id="nu_srv">{{ srv_info }}</span>
 	</footer>
 
+	<!-- the action bar's NARROW placement, and the reason it is empty here:
+	     the bar is ONE component with two containers (spec 0002 D5) and nu.js
+	     renders it into whichever one the band calls for -- this below 64em,
+	     #nu_tools in the status line at and above it -- emptying the other.
+	     so, like #nu_tools, this is styled on :empty: an empty fixed bar must
+	     cost no strip of blur across the bottom of a 1440px window. no
+	     whitespace inside it, or :empty stops matching.
+
+	     it is a sibling AFTER #nu_foot on purpose: what a bar fixed to the
+	     bottom covers is the footer, so the footer is what carries the
+	     clearance for it. -->
+	<div id="nu_bar"></div>
+
 	<script nonce="{{ js_nonce }}">
 		// the i18n dict the tl tag below fills in. it is declared HERE and not
 		// in nu.js because the tag has to run between the two, and it is not

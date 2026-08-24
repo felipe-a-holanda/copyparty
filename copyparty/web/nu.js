@@ -76,6 +76,14 @@ Ls.eng = {
 	nu_q: "Search in this folder",
 	nu_old: "classic",
 
+	// the action bar, at both of its placements
+	nu_a_up: "Upload files",
+	nu_a_mkdir: "New folder",
+	nu_a_more: "\u22ef",
+	nu_a_more_t: "More",
+	nu_mk_ask: "name of the new folder:",
+	nu_mk_err: "could not create the folder",
+
 	// the status line and a folder's own count
 	nu_item: "item",
 	nu_items: "items",
@@ -674,6 +682,122 @@ function sheet(id, on) {
 				v.hidden = true;
 		}, 280);
 	}
+}
+
+// -- the action bar ----------------------------------------------------
+//
+// ONE component, TWO placements (spec 0002 D5): the fixed bar below 64em,
+// and the #nu_tools slot in the status line at and above it. one render,
+// one table of keys, one set of handlers. a second bar with its own strings
+// is the failure 0002 declared #nu_tools against, and it is a failure that
+// only shows up as drift months later, so it is worth saying twice.
+//
+//   [ key, label key, aria-label key or null, show(), live(), do() ]
+//
+// `show` and `live` are different questions and upload is why. `show` says
+// whether the button exists at all -- a user without write has no business
+// being offered mkdir. `live` says only whether it LOOKS available: the
+// handler runs either way, because a dead button that cannot be tapped
+// cannot explain itself, which is the whole of spec 0001 D2.
+
+var ACTS = [
+	["up", "nu_a_up", null,
+		function () { return true; },
+		function () { return false; },
+		function () {
+			// upload is out to its own spec (D2): up2k.js is not a library,
+			// it drives ~47 specific element ids. until that spec lands the
+			// honest state is a visibly dead button that routes to the UI
+			// where uploading works -- not a hidden one that makes this look
+			// finished.
+			location.href = location.pathname + "?nu0";
+		}],
+
+	["mkdir", "nu_a_mkdir", null,
+		function () { return !!(perms && perms.indexOf("write") + 1); },
+		function () { return true; },
+		act_mkdir],
+
+	["more", "nu_a_more", "nu_a_more_t",
+		function () { return true; },
+		function () { return true; },
+		function () { sheet("nu_menu", true); }]
+];
+
+function render_acts() {
+	var el = ebi(CAP.wide ? "nu_tools" : "nu_bar"),
+		off = ebi(CAP.wide ? "nu_bar" : "nu_tools"),
+		h = [];
+
+	// the container that is not the current placement is EMPTIED, never
+	// hidden: both :empty rules in nu.css key on content, so an emptied
+	// #nu_tools costs no box in #nu_acts' flex gap at phone width, and an
+	// emptied #nu_bar paints no strip of blur at 1440px.
+	off.innerHTML = "";
+
+	for (var a = 0; a < ACTS.length; a++) {
+		var c = ACTS[a], live = false;
+
+		try { if (!c[3]()) continue; }
+		catch (ex) { continue; }
+
+		try { live = !!c[4](); }
+		catch (ex) { }
+
+		h.push('<button type="button" class="nu_act nu_a_' + c[0] +
+			'" data-a="' + esc(c[0]) + '"' +
+			(c[2] ? ' aria-label="' + esc(t(c[2])) + '"' : "") +
+			// aria-disabled, never the disabled attribute: a disabled button
+			// emits no click event at all, and this bar's dead button has to
+			// be tappable to say what it is waiting for.
+			(live ? "" : ' aria-disabled="true"') + '>' +
+			esc(t(c[1])) + '</button>');
+	}
+
+	el.innerHTML = h.join("");
+}
+
+function act_click(e) {
+	var b = e.target && e.target.closest ? e.target.closest(".nu_act") : null;
+	if (!b)
+		return;
+
+	var k = b.getAttribute("data-a");
+	for (var a = 0; a < ACTS.length; a++)
+		if (ACTS[a][0] == k)
+			return ACTS[a][5](b);
+}
+
+// the same request the classic UI makes (browser.js:8998-9010): multipart
+// `act=mkdir` + `name`, posted at the folder we are standing in, which is
+// what handle_mkdir() joins the name onto (httpcli.py:3736-3741). _mkdir()
+// answers `redirect(vpath, status=201)`, and 405 is "already exists" --
+// for a listing that wants refreshing those are the same outcome.
+function act_mkdir() {
+	var name = null;
+	try { name = prompt(t("nu_mk_ask")); }
+	catch (ex) { }
+
+	if (!name)
+		return;
+
+	var fd = new FormData();
+	fd.append("act", "mkdir");
+	fd.append("name", name);
+
+	var xhr = new XMLHttpRequest();
+	xhr.open("POST", location.pathname, true);
+	xhr.onloadend = function () {
+		if (this.status != 201 && this.status != 405)
+			return alert(t("nu_mk_err") + " (HTTP " + this.status + ")");
+
+		// fetch_ls is callback-only -- it does not call take() itself
+		fetch_ls(location.pathname, function (err, ls) {
+			if (!err)
+				take(ls);
+		});
+	};
+	xhr.send(fd);
 }
 
 function pick_sort(k) {
@@ -1284,6 +1408,9 @@ function tree_boot() {
 			pick_sort(b.getAttribute("data-k"));
 	};
 
+	ebi("nu_bar").onclick = act_click;
+	ebi("nu_tools").onclick = act_click;
+
 	ebi("nu_sort").onclick = function () {
 		sheet("nu_sheet", ST.sheet != "nu_sheet");
 	};
@@ -1410,6 +1537,12 @@ function tree_boot() {
 
 	render_chips();
 	build_head();
+
+	// the bar moves between its two containers on the same query CAP already
+	// re-reads, so a window dragged across 64em re-places it without a
+	// reload -- and there is never a frame with the bar in both.
+	render_acts();
+	CAP.on("wide", function () { render_acts(); });
 
 	if (ls0)
 		return take(ls0);
