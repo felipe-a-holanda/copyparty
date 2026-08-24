@@ -107,6 +107,14 @@ Ls.eng = {
 	nu_rm_ask: "delete %?",
 	nu_rm_err: "could not delete",
 
+	// the swipe. `Link` is the button's whole label because it has 84px to
+	// say it in; the right-click row has a menu's worth of room and says
+	// `Copy link`. the swipe's destructive button reuses nu_a_rm -- one
+	// word for one thing, in every language.
+	nu_sw_link: "Link",
+	ctx_link: "Copy link",
+	nu_cp_ask: "copy this link:",
+
 	// the ... router: two section headers and nine rows
 	nu_m_view: "View",
 	nu_m_here: "In this folder",
@@ -813,6 +821,70 @@ function vp_of(f) {
 	return base + nm(f);
 }
 
+// the ABSOLUTE url, because a copied link is going somewhere else -- a
+// relative href pasted into a chat is not a link at all. the listing's
+// href is already url-encoded and already carries the dirkey when we
+// arrived through one, so it is the right string; it is RESOLVED against
+// the document rather than concatenated onto location.origin, so a
+// reverse-proxy prefix comes along without anybody here knowing about it.
+//
+// `?nu` is deliberately not appended. keep() is for the links this UI
+// follows itself; a link handed to somebody else should open whichever UI
+// that person's cookie asks for.
+function url_of(f) {
+	try {
+		var a = document.createElement("a");
+		a.href = f.href;
+		return a.href || f.href;
+	}
+	catch (ex) { return f.href; }
+}
+
+// navigator.clipboard is https-only, and copyparty is served over plain
+// http on a LAN more often than it is not -- so the execCommand path below
+// is not a legacy fallback, it is the one that actually runs on the
+// deployment this UI is for.
+function copy_link(f) {
+	var u = url_of(f);
+
+	try {
+		if (navigator.clipboard && navigator.clipboard.writeText)
+			return navigator.clipboard.writeText(u)["catch"](function () {
+				copy_dom(u);
+			});
+	}
+	catch (ex) { }
+
+	copy_dom(u);
+}
+
+function copy_dom(txt) {
+	var ta = null;
+	try {
+		ta = document.createElement("textarea");
+		ta.value = txt;
+		// parked off-screen and not display:none: a hidden textarea cannot
+		// be selected, and the copy then succeeds at copying nothing
+		ta.style.position = "fixed";
+		ta.style.left = "-9999px";
+		document.body.appendChild(ta);
+		ta.focus();
+		ta.select();
+		document.execCommand("copy");
+		document.body.removeChild(ta);
+		return;
+	}
+	catch (ex) {
+		try { if (ta) document.body.removeChild(ta); }
+		catch (ex2) { }
+	}
+
+	// last door: a prompt the user can copy out of by hand. a link the UI
+	// silently failed to copy is worse than one it admits it cannot.
+	try { prompt(t("nu_cp_ask"), txt); }
+	catch (ex) { }
+}
+
 function item_by_key(k) {
 	if (!k)
 		return null;
@@ -928,6 +1000,17 @@ function sel_click(e) {
 	// may well have drifted onto the row's padding
 	if (LP.eat) {
 		LP.eat = false;
+		e.preventDefault();
+		return;
+	}
+
+	// the single most likely mis-tap in the whole design (README:245): a
+	// row is standing open, the thumb comes down anywhere on the list, and
+	// what it means is "put that back" -- never "open this file". checked
+	// before the row test, because the thumb may well have landed on a
+	// DIFFERENT row than the open one, and it still means the same thing.
+	if (SW.open) {
+		sw_close();
 		e.preventDefault();
 		return;
 	}
@@ -1058,6 +1141,246 @@ function lp_bind(on) {
 		el.removeEventListener("touchend", lp_cancel);
 		el.removeEventListener("touchcancel", lp_cancel);
 		lp_cancel();
+	}
+}
+
+// -- the gesture stream ------------------------------------------------
+//
+// ONE pair of touch handlers for the drag gestures, on #nu_main, because
+// the arbitration between them is an axis lock and an axis lock cannot be
+// split across two listeners: the first move that clears GST_AX picks an
+// axis and the gesture keeps it to the end. so a diagonal thumb does one
+// thing, never both, and never neither.
+//
+// the long-press is NOT folded in here -- it is Card 5's, it lives on
+// #nu_list, and it needs nothing from this: it already cancels itself on a
+// 6px move, and any real swipe clears 6px long before it clears the 8px
+// lock. the two are written against each other by that threshold and by
+// LP.eat, which this reuses rather than minting a second click-swallow.
+//
+// installed only under CAP.coarse, from JS, with the same CAP.on() re-bind
+// as the long-press and the right-click menu. a css-only gate would leave
+// the listeners running for a mouse, which is the exact bug CAP exists for.
+
+var GST_AX = 8;		// the axis lock: shorter than the long-press's own 6px
+					// cancel, so a gesture that locks has already cancelled it
+
+var SW_STEP = 84,	// one button (README:244)
+	SW_SNAP = 60;	// release past this opens; short of it, it springs back
+
+// `row` is the element under the finger THIS gesture, `open` is the element
+// the last one left standing. they are different questions -- a tap on a
+// second row while a first is open has both.
+var SW = { row: null, k: null, max: 0, dx: 0, from: 0, open: null };
+
+// `ax` is 0 until the lock, then 1 horizontal / 2 vertical
+var GST = { x: 0, y: 0, ax: 0 };
+
+// the track is created once and moved, never re-emitted per row: #nu_list
+// is rewritten wholesale on every draw, so per-row markup would repaint
+// two buttons for the ninety-nine rows nobody is touching. it mounts into
+// #nu_main, which is not rewritten.
+var SW_EL = null;
+
+function sw_el() {
+	if (SW_EL)
+		return SW_EL;
+
+	var el = document.createElement("div");
+	el.id = "nu_swipe";
+	el.hidden = true;
+	el.onclick = sw_click;
+	ebi("nu_main").appendChild(el);
+	return (SW_EL = el);
+}
+
+// the same `show()` question the action bar asks: a server started
+// --no-del has no business offering a Excluir button, so the track is 84px
+// wide there and not 168px with a dead half.
+function sw_acts() {
+	var a = [["link", "nu_sw_link"]];
+
+	if (srvcfg.have_del && perms && perms.indexOf("delete") + 1)
+		a.push(["rm", "nu_a_rm"]);
+
+	return a;
+}
+
+function sw_close() {
+	if (SW.open) {
+		SW.open.classList.remove("nu_drag");
+		SW.open.style.transform = "";
+	}
+
+	if (SW_EL)
+		SW_EL.hidden = true;
+
+	SW.open = null;
+	SW.dx = 0;
+}
+
+// the track goes where the row IS, measured off the same offsetParent the
+// row is laid out in -- so it needs no knowledge of the header above the
+// list, of the band, or of how far the page has scrolled.
+function sw_place(row) {
+	var el = sw_el(),
+		acts = sw_acts(),
+		h = [];
+
+	for (var a = 0; a < acts.length; a++)
+		h.push('<button type="button" class="nu_swb nu_sw_' + acts[a][0] +
+			'" data-s="' + acts[a][0] + '">' + esc(t(acts[a][1])) + '</button>');
+
+	el.innerHTML = h.join("");
+	el.style.top = row.offsetTop + "px";
+	el.style.height = row.offsetHeight + "px";
+	el.hidden = false;
+
+	return acts.length * SW_STEP;
+}
+
+function sw_click(e) {
+	var b = e.target && e.target.closest ? e.target.closest(".nu_swb") : null;
+	if (!b)
+		return;
+
+	var f = item_by_key(SW.k),
+		k = b.getAttribute("data-s");
+
+	// closed FIRST: both handlers below refresh the listing, and a track
+	// still pointing at a row that is about to be re-rendered is a box
+	// hovering over whatever row inherits that offset.
+	sw_close();
+
+	if (!f)
+		return;
+
+	if (k == "link")
+		return copy_link(f);
+
+	if (k == "rm")
+		return rm_send([vp_of(f)]);
+}
+
+function gst_down(e) {
+	SW.row = null;
+	GST.ax = 0;
+
+	// two fingers is a pinch, never a drag
+	var tt = e.touches && e.touches.length == 1 ? e.touches[0] : null;
+	if (!tt)
+		return;
+
+	var row = e.target && e.target.closest ?
+		e.target.closest(".nu_row") : null;
+
+	// the open row is NOT closed here. closing on touchstart would mean the
+	// finger arriving at `Excluir` closes the track it came for -- and the
+	// close belongs to the click anyway (see sel_click), where it can also
+	// swallow the navigation.
+	if (row && !row.classList.contains("nu_back"))
+		SW.row = row;
+
+	GST.x = tt.clientX;
+	GST.y = tt.clientY;
+}
+
+function gst_move(e) {
+	var tt = e.touches && e.touches[0];
+	if (!tt)
+		return gst_up();
+
+	var dx = tt.clientX - GST.x,
+		dy = tt.clientY - GST.y;
+
+	if (!GST.ax) {
+		if (Math.abs(dx) < GST_AX && Math.abs(dy) < GST_AX)
+			return;
+
+		GST.ax = Math.abs(dx) > Math.abs(dy) ? 1 : 2;
+
+		if (GST.ax == 1) {
+			// a row already open drags on from where it stands, so pulling
+			// it shut is the same gesture backwards. every OTHER open row
+			// closes: two open tracks would be two rows claiming the same
+			// two buttons.
+			SW.from = SW.open === SW.row ? SW.dx : 0;
+			if (SW.open && SW.open !== SW.row)
+				sw_close();
+
+			// rightward off a closed row is not a swipe -- there is nothing
+			// on that side to reveal
+			if (!SW.row || (dx > 0 && !SW.from))
+				return (SW.row = null);
+
+			SW.k = SW.row.getAttribute("data-k");
+			SW.max = sw_place(SW.row);
+			SW.row.classList.add("nu_drag");
+		}
+	}
+
+	if (GST.ax != 1 || !SW.row)
+		return;
+
+	// clamped at both ends: the row never travels right of where it
+	// started, and never past the last pixel of track there is to reveal
+	SW.dx = Math.max(-SW.max, Math.min(0, SW.from + dx));
+	SW.row.style.transform = "translateX(" + SW.dx + "px)";
+}
+
+function gst_up() {
+	var row = SW.row,
+		ax = GST.ax;
+
+	SW.row = null;
+	GST.ax = 0;
+
+	// a gesture that locked VERTICAL never touched this row's transform, so
+	// it must not decide anything about it -- least of all close a track
+	// belonging to some other row entirely
+	if (!row || ax != 1)
+		return;
+
+	// the transition comes back BEFORE the transform changes, which is the
+	// whole spring: with the class still on, the snap would be a jump
+	row.classList.remove("nu_drag");
+
+	if (SW.dx > -SW_SNAP) {
+		SW.open = row;		// so sw_close() has something to untranslate
+		return sw_close();
+	}
+
+	SW.dx = -SW.max;
+	SW.open = row;
+	row.style.transform = "translateX(" + SW.dx + "px)";
+
+	// the finger lifting off an opened row still sends a click, and that
+	// click would navigate into the file the gesture just uncovered. the
+	// same swallow the long-press uses -- one flag, one meaning: this touch
+	// was a gesture, so the click it produced is not a tap.
+	LP.eat = true;
+}
+
+function gst_bind(on) {
+	var el = ebi("nu_main");
+
+	if (on) {
+		// passive, all three: the swipe needs no preventDefault at all --
+		// `touch-action: pan-y` in nu.css is what stops the sideways pan,
+		// declaratively and off the main thread.
+		el.addEventListener("touchstart", gst_down, { passive: true });
+		el.addEventListener("touchmove", gst_move, { passive: true });
+		el.addEventListener("touchend", gst_up, { passive: true });
+		el.addEventListener("touchcancel", gst_up, { passive: true });
+	}
+	else {
+		el.removeEventListener("touchstart", gst_down);
+		el.removeEventListener("touchmove", gst_move);
+		el.removeEventListener("touchend", gst_up);
+		el.removeEventListener("touchcancel", gst_up);
+		SW.row = null;
+		GST.ax = 0;
+		sw_close();
 	}
 }
 
@@ -1537,6 +1860,11 @@ function set_view(v) {
 }
 
 function draw() {
+	// the swipe cannot survive the repaint: #nu_list is rewritten below, so
+	// the row the track was measured against is about to stop existing, and
+	// a track left behind would sit over whichever row inherits its offset.
+	sw_close();
+
 	var shown = filtered();
 	render_stat(shown);
 	// beside render_stat, and NOT bolted into pick_sort(): the arrow is
@@ -1811,6 +2139,15 @@ function act_rm() {
 	for (var a = 0; a < sel.length; a++)
 		vps.push(vp_of(sel[a]));
 
+	rm_send(vps);
+}
+
+// the WIRE half, and the dialog is deliberately not in it: spec 0001 D6
+// gives one swiped file no dialog and N selected files one, so the question
+// belongs to whoever asked and the request does not. three callers -- the
+// selection bar above, the swipe's `Excluir`, and the right-click row --
+// and one POST between them.
+function rm_send(vps) {
 	var xhr = new XMLHttpRequest();
 	xhr.open("POST", location.pathname + "?delete", true);
 	// text/plain, not application/json: handle_post_json accepts either
@@ -2311,6 +2648,46 @@ var CTX = [
 				: location.pathname;
 
 			location.href = h + "?nu0";
+		}],
+
+	// the wide equivalent of the swipe, and a ROW in this table rather than
+	// a second menu (spec 0002 D2). copy-link and delete were left out of
+	// this table on purpose until there was a visible door for them: the
+	// swipe is that door narrow, the selection bar is that door wide, and
+	// these two are the accelerator over both -- never the only way in,
+	// because a hover-only action is unreachable by a finger at 1400px.
+	//
+	// both are gated on item_by_key rather than on `r` alone, which is also
+	// what keeps them off the "back" row: it carries no data-k, so there is
+	// no listing entry to copy a link to or to destroy.
+	["link", "ctx_link",
+		function (r) { return !!item_by_key(r.getAttribute("data-k")); },
+		function (r) {
+			var f = item_by_key(r.getAttribute("data-k"));
+			if (f)
+				copy_link(f);
+		}],
+
+	["rm", "nu_a_rm",
+		function (r) {
+			return !!srvcfg.have_del && !!(perms && perms.indexOf("delete") + 1) &&
+				!!item_by_key(r.getAttribute("data-k"));
+		},
+		function (r) {
+			var f = item_by_key(r.getAttribute("data-k"));
+			if (!f)
+				return;
+
+			// the swipe gets no dialog because it already cost a deliberate
+			// drag and a deliberate tap; ONE right-click and one menu item
+			// is not two deliberate acts, so this one asks
+			try {
+				if (!confirm(t("nu_rm_ask").replace("%", nm(f))))
+					return;
+			}
+			catch (ex) { return; }
+
+			rm_send([vp_of(f)]);
 		}]
 ];
 
@@ -3089,6 +3466,13 @@ function set_dots(v) {
 	// what makes this a capability and not a width.
 	lp_bind(CAP.coarse);
 	CAP.on("coarse", function (v) { lp_bind(v); });
+
+	// the drag gestures ride the same capability and the same re-bind. two
+	// bindings and not one because they live on two elements -- the press
+	// belongs to the list, the swipe reaches past it into #nu_main's
+	// padding -- but they flip together, always.
+	gst_bind(CAP.coarse);
+	CAP.on("coarse", function (v) { gst_bind(v); });
 
 	// one node, two jobs, and the mode is what picks: the labels these two
 	// wear are written by render_stat in the same branch, so what the

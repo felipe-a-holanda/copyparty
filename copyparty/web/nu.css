@@ -33,6 +33,13 @@
 	   chevron is a glyph and this is a 2px stroke around nothing, and the
 	   handoff gives them two different greys on purpose. */
 	--cb-off: #c9ccd4;
+	/* the swipe track and the Link button standing on it (README:244). the
+	   track is what shows behind a row on its way out, so it is its own
+	   token and not --fill: --fill is the search box's ground, and a row
+	   sliding off had better not read as a text input underneath. */
+	--sw-track: #eceaf4;
+	--sw-link: #d9d8e4;
+	--sw-link-fg: #3c3a52;
 	--sel: #f0edf9;
 	/* --sel is the :active / selected fill; hover is a weaker, separate
 	   state and must not borrow it, or a mouseover reads as a selection */
@@ -97,6 +104,9 @@
 		--chev: #4b505a;
 		--tgl-off: #33353d;
 		--cb-off: #3d414b;
+		--sw-track: #201c2e;
+		--sw-link: #2e2942;
+		--sw-link-fg: #cfcbe4;
 		--sel: #241f33;
 		--hov: #1d1e24;
 		--ring: oklch(0.78 0.15 var(--acc-h));
@@ -139,6 +149,9 @@
 	--chev: #4b505a;
 	--tgl-off: #33353d;
 	--cb-off: #3d414b;
+	--sw-track: #201c2e;
+	--sw-link: #2e2942;
+	--sw-link-fg: #cfcbe4;
 	--sel: #241f33;
 	--hov: #1d1e24;
 	--ring: oklch(0.78 0.15 var(--acc-h));
@@ -467,6 +480,11 @@ a {
 
 #nu_main {
 	padding-bottom: calc(28px + env(safe-area-inset-bottom));
+	/* the offsetParent the swipe track is placed against. #nu_main and not
+	   #nu_list on purpose: #nu_list.innerHTML is rewritten on every draw,
+	   and a track mounted inside it would be destroyed by a keystroke in
+	   the filter box. */
+	position: relative;
 }
 
 /* the column header, hidden everywhere but the wide band -- the narrow and
@@ -492,7 +510,20 @@ a {
 	border-bottom: 1px solid var(--line-soft);
 	width: 100%;
 	text-align: left;
-	transition: background .12s ease;
+	/* the row rides ABOVE the swipe track and its background is opaque, so
+	   the track is visible through exactly the strip the row has vacated
+	   and nowhere else. */
+	position: relative;
+	z-index: 1;
+	transition: background .12s ease,
+		transform .22s cubic-bezier(.2, .9, .3, 1);
+}
+
+/* no transition at all while the finger is down (README:250). with the
+   .22s live the row trails the thumb by a fifth of a second, which does not
+   read as a slow row -- it reads as a broken one. */
+.nu_row.nu_drag {
+	transition: none;
 }
 
 /* hover is an input capability, never a width: a 1400px touch tablet must
@@ -535,6 +566,60 @@ a {
    it only ever has to write the attribute. */
 :root[data-dens="touch"] {
 	--row-pad: 14px 16px;
+}
+
+/* ---- the swipe track ---- */
+
+/* the browser keeps the vertical pan and nu takes the horizontal one. this
+   declaration is what lets the gesture listeners stay PASSIVE: without it
+   the only way to stop the list panning sideways under a swipe is
+   preventDefault() from a non-passive touchmove, and that is a cost the
+   whole scroller pays on every finger, swipe or not.
+
+   gated on the pointer and not on a width, for the same reason every other
+   gesture here is: nu.js does not install the listeners under a mouse, and
+   a touch-action left behind for one would be a rule with no gesture. */
+@media (pointer: coarse) {
+	.nu_row {
+		touch-action: pan-y;
+	}
+}
+
+/* ONE track for the whole list, moved to whichever row is open -- it is
+   nu.js that mounts it, and only under a coarse pointer, so there is no
+   markup for it in nu.html and no box for it at rest. */
+#nu_swipe {
+	position: absolute;
+	right: 0;
+	display: flex;
+	z-index: 0;
+	background: var(--sw-track);
+}
+
+/* display:flex above outranks the UA's [hidden] { display: none }, so the
+   hidden state has to be re-stated or the track never leaves. */
+#nu_swipe[hidden] {
+	display: none;
+}
+
+.nu_swb {
+	/* 84px each, so both together are the 168px the row travels
+	   (README:244) -- the track is exactly as wide as the gesture is long */
+	width: 84px;
+	border: 0;
+	padding: 0;
+	font: 500 13px var(--font);
+	cursor: pointer;
+}
+
+.nu_sw_link {
+	background: var(--sw-link);
+	color: var(--sw-link-fg);
+}
+
+.nu_sw_rm {
+	background: var(--danger);
+	color: #fff;
 }
 
 /* ---- the selection checkbox ----
