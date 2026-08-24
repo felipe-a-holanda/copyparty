@@ -123,6 +123,10 @@ Ls.eng = {
 	nu_c_nsort_s: "“item 2” before “item 10”",
 	nu_c_thumbs: "Thumbnails",
 	nu_c_grid: "Grid view",
+	nu_c_crop: "Crop thumbnails",
+	nu_c_crop_s: "fill the tile instead of fitting inside it",
+	nu_c_3x: "Sharp thumbnails",
+	nu_c_3x_s: "ask for 3x pixels; slower, and heavier on the server",
 	nu_c_dens: "Roomy rows",
 	nu_c_dens_s: "keep the touch-sized row on a wide screen",
 	nu_c_szfmt: "Size format",
@@ -205,6 +209,31 @@ function sset(k, v) {
 	catch (ex) { }
 }
 
+// the two thumbnail volflags an admin can FORCE. `crop` and `th3x` reach us
+// as "y"/"n", or "fy"/"fn" when the volume decides (authsrv.py:3272-3273).
+// the classic UI honours the `f` by overwriting its own toggle on every
+// loadgrid (browser.js:5828-5832); here it is honoured the other way round
+// -- a forced value is not a preference at all, so its settings row is
+// gated away entirely rather than rendered as a switch that does nothing,
+// the same rule the dotfiles row lives by (spec 0001 D3).
+function vflag(k) {
+	return String((cfg && cfg[k]) || "");
+}
+
+function vforced(k) {
+	return vflag(k).charAt(0) == "f";
+}
+
+function vdef(k) {
+	return vflag(k).slice(-1) == "y";
+}
+
+// read at CALL time and never latched: a window dragged to another screen
+// changes it, and this is only ever asked for a default.
+function dpr() {
+	return window.devicePixelRatio || 1;
+}
+
 // `b` marks a boolean (the "1"/"0" encoding); `ok` is the legal set for an
 // enum, so a key hand-edited to junk falls back to the default instead of
 // rendering an undefined branch. `d` is a FUNCTION and not a value: the
@@ -216,6 +245,14 @@ var PREFS = {
 	dir1st: { b: 1, d: function () { return true; } },
 	nsort: { b: 1, d: function () { return !!(cfg && cfg.dnsort); } },
 	thumbs: { b: 1, d: function () { return true; } },
+	// crop and 3x are the classic UI's own keys, in the classic UI's own
+	// "1"/"0" encoding (bcfg_set, util.js:1330), so the two UIs agree about
+	// a volume's thumbnails instead of each keeping half an answer.
+	// `3` is asked for on a hi-dpi screen by default, because that is the
+	// screen the extra pixels exist for; the volume's own default wins when
+	// it says yes, and forcing is handled above pref() entirely.
+	gridcrop: { b: 1, d: function () { return vdef("dcrop"); } },
+	grid3x: { b: 1, d: function () { return vdef("dth3x") || dpr() > 1; } },
 
 	// nu's own. `nu_thm` predates this table -- the boot skeleton already
 	// wrote it -- and is folded in here rather than left as a second,
@@ -856,6 +893,153 @@ function render_list(shown) {
 	ebi("nu_list").innerHTML = h.join("");
 }
 
+// -- thumbnails --------------------------------------------------------
+//
+// spec 0001 D7: there is NOTHING here to negotiate with the server. `?th=`
+// carries the format in the parameter and the client picks it from its own
+// decode probes, exactly as the classic UI does (browser.js:5873-5878).
+//
+// which leaves ONE trap, and it is the reason the onerror below is not the
+// thumbless detector it looks like: on a `--no-thumb` volume `?th=` answers
+// **200** with a served icon (tx_ico, httpcli.py:7133 -- tx_svg("folder")
+// for a coverless directory, :7113), and 200 with an error svg when a
+// conversion fails (:7120-7122). only `th=p` 404s and only the audio codes
+// 415, and nothing here asks for either. so a broken-image box is not a
+// state the server can put a tile in; onerror is for genuine transport
+// failure, and it falls back to the tile's own placeholder fill.
+
+// null until the probe answers -- the same three states browser.js keeps,
+// where `have_webp === null` is what loadgrid waits on (:5821). the keys
+// are the classic UI's, in the flat localStorage namespace nu shares with
+// it, so a user who has already probed over there does not probe again.
+var have_webp = null,
+	have_jxl = null,
+	// set by render_grid when it drew a tile with NO <img> because the
+	// probe had not answered yet. the probe's callback then redraws exactly
+	// once -- which is the point: a tile that guessed jpeg now and asked
+	// for webp a moment later would fetch every thumbnail twice.
+	TH_WAIT = false;
+
+function probe_img(fmt, uri) {
+	var k = "have_" + fmt,
+		v = sget(k);
+
+	if (v !== null)
+		return set_probe(fmt, !!v);
+
+	var img = new Image();
+	img.onload = function () {
+		var got = img.width > 0 && img.height > 0;
+		sset(k, got ? "ya" : "");
+		set_probe(fmt, got);
+	};
+	img.onerror = function () {
+		sset(k, "");
+		set_probe(fmt, false);
+	};
+	img.src = uri;
+}
+
+function set_probe(fmt, v) {
+	if (fmt == "jxl")
+		have_jxl = v;
+	else
+		have_webp = v;
+
+	if (TH_WAIT && th_fmt()) {
+		TH_WAIT = false;
+		draw();
+	}
+}
+
+// null is "not yet", which is emphatically not "no thumbnails": one makes
+// the tile wait for one redraw, the other never asks at all.
+function th_fmt() {
+	if (have_jxl === null || have_webp === null)
+		return null;
+
+	return have_jxl ? "x" : have_webp ? "w" : "j";
+}
+
+// a forced volflag is not a preference, so these two questions are asked
+// here and not through pref() alone
+function want_crop() {
+	return vforced("dcrop") ? vdef("dcrop") : pref("gridcrop");
+}
+
+function want_x3() {
+	return vforced("dth3x") ? vdef("dth3x") : pref("grid3x");
+}
+
+// the admin's per-extension icon overrides (`ext_th`, authsrv.py:3302),
+// consulted BEFORE any thumb request exactly as browser.js:5870-5872 does:
+// an admin who pinned an icon to an extension meant it, and asking the
+// thumbnailer first would race them for the same tile.
+//
+// keyed the way browser.js:5851-5868 keys it -- up to two trailing name
+// components of at most 7 chars each, so "tar.gz" is a key, with the last
+// component alone as the fallback. the decoded name is what is split, not
+// the href: an escape in the url would not match a key an admin typed.
+function ext_th(f) {
+	var m = srvcfg.ext_th;
+	if (!m)
+		return "";
+
+	var ar = nm(f).split(".");
+	ar.shift();
+	ar.reverse();
+
+	var e0 = ar.length ? ar[0] : "",
+		e = "";
+
+	for (var a = 0; a < Math.min(2, ar.length); a++) {
+		if (ar[a].length > 7)
+			break;
+
+		e = e ? (ar[a] + "." + e) : ar[a];
+	}
+
+	return m[e || "unk"] || (e0 && m[e0]) || "";
+}
+
+// "" -- this tile asks for no thumbnail at all;
+// null -- ask again once the probe answers.
+function th_src(f) {
+	if (!pref("thumbs"))
+		return "";
+
+	var u = ext_th(f);
+	if (u)
+		return u;
+
+	var fmt = th_fmt();
+	if (!fmt)
+		return null;
+
+	// built on the file's OWN href, which already carries the dirkey or the
+	// filekey where the volume needs one -- a url rebuilt from the name
+	// would drop it and every tile on a dk volume would 403.
+	//
+	// `f` when not cropping and `3` on hi-dpi are the same two suffixes
+	// browser.js:5879-5882 appends, and `cache=i&_=` is its cache key
+	// (:5900). the classic UI also appends `&raster` on chrome, for the
+	// ~2000-unique-svg limit that bites only the served-icon fallback; nu
+	// carries no useragent sniff and is not growing one for it.
+	var h = f.href;
+	return h + (h.indexOf("?") < 0 ? "?" : "&") + "th=" + fmt +
+		(want_crop() ? "" : "f") + (want_x3() ? "3" : "") +
+		"&cache=i&_=" + TS;
+}
+
+// genuine transport failure only -- see the trap above. dropping the <img>
+// uncovers the tile's own placeholder fill, which is already the design's
+// behaviour for a file with no preview, so there is no second markup and
+// no second state to keep.
+function th_dead() {
+	if (this.parentNode)
+		this.parentNode.removeChild(this);
+}
+
 // -- the grid ----------------------------------------------------------
 //
 // the ONE sanctioned exception to "one markup, one renderer"
@@ -891,14 +1075,29 @@ function render_grid(shown) {
 			'<span class="nu_tn">' + esc(t("nu_back")) + '</span></a>');
 	}
 
+	// cleared here and re-armed per tile: whether the grid is waiting on the
+	// probe is a fact about THIS draw, not a latch
+	TH_WAIT = false;
+
 	for (var a = 0; a < shown.length; a++) {
 		var f = shown[a],
 			d = isdir(f),
-			k = kind_of(f);
+			k = kind_of(f),
+			th = th_src(f);
+
+		if (th === null)
+			TH_WAIT = true;
 
 		h.push('<a class="nu_tile ' + (d ? "nu_dir" : "nu_file") +
 			(k && k != "dir" ? " nu_k_" + k : "") +
 			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
+			// the thumbnail sits UNDER the badge and the name, over the
+			// placeholder fill; alt is empty because the name is already
+			// on the tile as text and a screen reader must not read it
+			// twice. .nu_tfit follows the `f` in the url -- the server was
+			// asked to fit rather than crop, so the css may not crop it.
+			(th ? '<img class="nu_ti' + (want_crop() ? "" : " nu_tfit") +
+				'" alt="" src="' + esc(th) + '">' : "") +
 			// chip_text() emits a bare entity for "no extension", exactly
 			// as it does for the list's chip, so this is not escaped there
 			// either
@@ -916,6 +1115,15 @@ function render_grid(shown) {
 			'</p>');
 
 	ebi("nu_list").innerHTML = h.join("");
+
+	// the fallback is attached as a PROPERTY and never as an inline
+	// attribute: nu is servable under a Content-Security-Policy, and an
+	// `onerror=` built into innerHTML is exactly what such a policy drops --
+	// the same reason the settings swatch carries a data attribute instead
+	// of a style attribute.
+	var im = ebi("nu_list").querySelectorAll("img.nu_ti");
+	for (var b = 0; b < im.length; b++)
+		im[b].onerror = th_dead;
 }
 
 // the view flips two things and they have to move together: the attribute
@@ -1316,6 +1524,14 @@ var CFG = [
 		["tgl", "nsort", "nu_c_nsort", "nu_c_nsort_s", yep],
 		["tgl", "thumbs", "nu_c_thumbs", null, yep],
 		["tgl", "nu_grid", "nu_c_grid", null, yep],
+		// the design's five, then this spec's additions. crop and 3x are
+		// gated on the VOLFLAG and not on a capability: where the admin
+		// forced the answer there is nothing for a switch to do, and a
+		// switch that does nothing cannot say why (spec 0001 D3).
+		["tgl", "gridcrop", "nu_c_crop", "nu_c_crop_s",
+			function () { return !vforced("dcrop"); }],
+		["tgl", "grid3x", "nu_c_3x", "nu_c_3x_s",
+			function () { return !vforced("dth3x"); }],
 		["tgl", "nu_dens", "nu_c_dens", "nu_c_dens_s", yep]
 	]],
 
@@ -1478,6 +1694,10 @@ var PREF_FX = {
 	// redraw: the container's layout and the column header are css reading
 	// <html>, so a draw() alone would put tiles inside a list container.
 	nu_grid: view_fx,
+	// both only ever change a url the next draw builds, so a redraw is the
+	// whole of the effect -- the tiles re-request with the new suffix
+	gridcrop: draw,
+	grid3x: draw,
 	nu_szfmt: draw,
 	nu_dens: apply_prefs,
 	nu_thm: apply_prefs,
@@ -2127,6 +2347,14 @@ function set_dots(v) {
 	apply_prefs();
 
 	watch_head();
+
+	// the decode probes, started before the first draw and not after it: a
+	// cached answer (the classic UI's own localStorage keys) resolves
+	// synchronously right here, so the very first grid already asks for the
+	// right format. an uncached one answers later and redraws once -- see
+	// set_probe. the two data uris are browser.js:1244-1245's own.
+	probe_img("webp", "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==");
+	probe_img("jxl", "data:image/jxl;base64,/woIAAAMABKIAgC4AF3lEgA=");
 
 	if (cfg && cfg.dsort)
 		for (var a = 0; a < SORTS.length; a++)

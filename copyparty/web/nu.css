@@ -628,6 +628,26 @@ a {
 	outline-offset: 2px;
 }
 
+/* the real thumbnail, drawn over the tile's placeholder fill and under the
+   badge and the name. the fill stays underneath as the fallback, which is
+   why th_dead() can simply drop the <img> and needs no second markup. */
+.nu_ti {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* `f` in the request means the server FITS the image inside the box rather
+   than cropping it, so `cover` here would crop what the server was asked
+   not to. the two have to agree, and the class rides on the <img> so
+   nothing has to be plumbed through an attribute to say so. */
+.nu_ti.nu_tfit {
+	object-fit: contain;
+}
+
 /* the extension badge, top-left: the same word the list's type chip
    carries, in the design's own metric (README:147-149) */
 .nu_tb {
