@@ -21,8 +21,12 @@
 			{%- else %}
 			<a id="nu_up" class="nu_hidden" href="#"><span class="nu_chev">&lsaquo;</span><span id="nu_upn"></span></a>
 			{%- endif %}
+			<!-- the nav bar's right slot is deliberately empty: the design
+			     assigns it to Selecionar / Concluir, and the `classic` escape
+			     hatch that used to sit here is now a row in the ... router,
+			     which is where every surface nu has not built yet is reached
+			     from (spec 0001 D1). -->
 			<h1 id="nu_here">{{ vpnodes[-1][1] }}</h1>
-			<a id="nu_old" href="?nu0" rel="nofollow">classic</a>
 		</div>
 
 		<div id="nu_srch">
@@ -85,6 +89,17 @@
 			<span id="nu_shint" class="nu_hint">tap again to reverse</span>
 		</div>
 		<div id="nu_sopts"></div>
+	</section>
+
+	<!-- the ... router. same shell as the sort sheet, a second tenant of the
+	     same sheet() and the same veil; empty and hidden until nu.js renders
+	     it from MENU. spec 0001 D1: this is not a list of four items, it is
+	     the only door nu will ever have for the surfaces the design never
+	     drew, so its rows are declared in one table and a later spec adds a
+	     row rather than redesigning the sheet. -->
+	<section id="nu_menu" hidden aria-modal="true" role="dialog">
+		<div class="nu_grip"></div>
+		<div id="nu_mopts"></div>
 	</section>
 
 	<footer id="nu_foot">

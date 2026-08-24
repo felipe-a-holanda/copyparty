@@ -208,13 +208,6 @@ a {
 	text-align: center;
 }
 
-#nu_old {
-	color: var(--fg2);
-	font-size: 14px;
-	font-weight: 500;
-	flex: 0 0 auto;
-}
-
 #nu_srch {
 	display: flex;
 	align-items: center;
@@ -330,11 +323,10 @@ a {
 	display: none;
 }
 
-/* the sort button and the two header links. #nu_up and #nu_old are the
-   header's buttons in everything but tag name. */
+/* the sort button and the back link -- #nu_up is one of the header's
+   buttons in everything but tag name. */
 #nu_sort:focus-visible,
-#nu_up:focus-visible,
-#nu_old:focus-visible {
+#nu_up:focus-visible {
 	outline: 2px solid var(--ring);
 	outline-offset: 3px;
 	border-radius: 6px;
@@ -537,7 +529,12 @@ a {
 	opacity: 1;
 }
 
-#nu_sheet {
+/* the shell, shared by every tenant of sheet(): the sort sheet and the ...
+   router today, and whatever the next spec mounts here. one shell means one
+   transition, one shadow and one set of band overrides to keep honest --
+   which is the whole reason sheet() stopped hardcoding an element id. */
+#nu_sheet,
+#nu_menu {
 	position: fixed;
 	left: 0;
 	right: 0;
@@ -553,8 +550,15 @@ a {
 	transition: transform .26s cubic-bezier(.2, .9, .3, 1);
 }
 
-#nu_sheet.on {
+#nu_sheet.on,
+#nu_menu.on {
 	transform: translateY(0);
+}
+
+/* the router is taller than the sort sheet by design (README:184): it holds
+   two sections and it is the surface that grows. */
+#nu_menu {
+	max-height: 560px;
 }
 
 /* the house guard, same as ui.css:641 and browser.css:3326. it lives after
@@ -564,6 +568,7 @@ a {
 
 	#nu_veil,
 	#nu_sheet,
+	#nu_menu,
 	.nu_row {
 		transition: none;
 	}
@@ -635,6 +640,65 @@ a {
 	text-align: right;
 	font-size: 15px;
 	font-weight: 600;
+}
+
+/* ---- the ... router's rows ---- */
+
+/* uppercased in css and not in the string table: the design draws these
+   caps, and a language whose casing rules differ should not have to ship a
+   shouting translation to get them. */
+.nu_mh {
+	margin: 0;
+	padding: 10px 12px 2px;
+	font: 700 11px var(--font);
+	letter-spacing: .12em;
+	text-transform: uppercase;
+	color: var(--fg2);
+}
+
+.nu_mrow {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	min-height: 50px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 14px;
+	background: none;
+	color: var(--fg);
+	font: 500 15px var(--font);
+	text-align: left;
+	cursor: pointer;
+}
+
+/* the real disabled attribute here, unlike the action bar's upload button:
+   these rows have nowhere to route yet, so there is nothing for a click to
+   say. the day a spec gives one a handler it stops being disabled. */
+.nu_mrow[disabled] {
+	opacity: .5;
+	cursor: default;
+}
+
+.nu_mrow .nu_mlab {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.nu_mrow .nu_mmeta {
+	flex: 0 0 auto;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--fg2);
+}
+
+.nu_mrow .nu_mgo {
+	flex: 0 0 auto;
+	font-size: 16px;
+	color: var(--chev);
 }
 
 /* ---- folder tree ----
@@ -890,7 +954,8 @@ a {
 		margin-right: auto;
 	}
 
-	#nu_sheet {
+	#nu_sheet,
+	#nu_menu {
 		left: 50%;
 		transform: translate(-50%, 110%);
 		width: 460px;
@@ -898,7 +963,8 @@ a {
 		bottom: 40px;
 	}
 
-	#nu_sheet.on {
+	#nu_sheet.on,
+	#nu_menu.on {
 		transform: translate(-50%, 0);
 	}
 }
@@ -958,10 +1024,6 @@ a {
 	#nu_here {
 		flex: 0 1 auto;
 		text-align: left;
-	}
-
-	#nu_old {
-		margin-left: auto;
 	}
 
 	/* no longer full-bleed: the search box is the second column, which is
@@ -1064,7 +1126,8 @@ a {
 	}
 
 	/* the sort sheet is a modal, and it is centered in both non-phone bands */
-	#nu_sheet {
+	#nu_sheet,
+	#nu_menu {
 		left: 50%;
 		transform: translate(-50%, 110%);
 		width: 460px;
@@ -1072,7 +1135,8 @@ a {
 		bottom: 40px;
 	}
 
-	#nu_sheet.on {
+	#nu_sheet.on,
+	#nu_menu.on {
 		transform: translate(-50%, 0);
 	}
 

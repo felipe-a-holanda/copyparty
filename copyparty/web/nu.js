@@ -2,9 +2,10 @@
 // and design-handoff/ for the design this implements.
 //
 // this is the base layer: list, row, navigation, header (search, filter
-// chips, status line) and sorting. selection, swipe, grid, the folder-tree
-// sheet, the overflow menu, settings and the image viewer are not here yet
-// -- until they are, the `classic` link is what they are for.
+// chips, status line), sorting, the action bar and the ... router.
+// selection, swipe, grid, the folder-tree sheet, settings and the image
+// viewer are not here yet -- until they are, the router's `classic UI` row
+// is the door to them.
 //
 // house style, same as the rest of web/: plain ES5-ish JS, no build step,
 // no framework.
@@ -74,7 +75,6 @@ Ls.eng = {
 
 	// the header's static text, filled at boot
 	nu_q: "Search in this folder",
-	nu_old: "classic",
 
 	// the action bar, at both of its placements
 	nu_a_up: "Upload files",
@@ -83,6 +83,21 @@ Ls.eng = {
 	nu_a_more_t: "More",
 	nu_mk_ask: "name of the new folder:",
 	nu_mk_err: "could not create the folder",
+
+	// the ... router: two section headers and eight rows
+	nu_m_here: "In this folder",
+	nu_m_srv: "Server",
+	nu_m_newmd: "New .md note",
+	nu_m_msg: "Send a message to the log",
+	nu_m_unpost: "Undo a recent upload",
+	nu_m_unpost_m: "unpost",
+	nu_m_rups: "Recent uploads",
+	nu_m_shr: "Shares",
+	nu_m_cfg: "Settings",
+	nu_m_cfg_m: "theme, sizes, upload",
+	nu_m_cpa: "Control panel",
+	nu_m_cpa_m: "volumes, account, admin",
+	nu_m_old: "The classic UI",
 
 	// the status line and a folder's own count
 	nu_item: "item",
@@ -631,7 +646,8 @@ function render_sheet() {
 // and still gets the veil, the transition and the Escape handling.
 
 var SHEETS = {
-	nu_sheet: render_sheet
+	nu_sheet: render_sheet,
+	nu_menu: render_menu
 };
 
 function sheet(id, on) {
@@ -798,6 +814,125 @@ function act_mkdir() {
 		});
 	};
 	xhr.send(fd);
+}
+
+// -- the ... router ----------------------------------------------------
+//
+// NOT a list of four items. spec 0001 D1 decided that the classic UI is
+// scaffolding and nu is aiming at parity, which makes this sheet the only
+// door nu will ever have for every surface the design never drew -- the
+// control panel, the admin panel, the shares list, whatever comes after.
+// so it is a table, in the same shape as 0002's CTX (nu.js:604-618), and a
+// later spec adds a ROW rather than redesigning the sheet.
+//
+//   section:  [ label key, rows ]
+//   row:      [ key, label key, meta key or null, ok(), do() or null ]
+//
+// `ok()` is the capability gate -- srvcfg and perms -- and a row it refuses
+// is not rendered at all, because a server that cannot do the thing should
+// not list it. `do` null is the other state: DECLARED, rendered, and
+// disabled. spec 0001 defers all of these but Settings (card 2) and the
+// classic-UI row below, and they are written out now so the router's shape
+// is right the first time and a later spec lands one handler.
+
+var MENU = [
+	["nu_m_here", [
+		["newmd", "nu_m_newmd", null,
+			function () { return !!(perms && perms.indexOf("write") + 1); },
+			null],
+
+		["msg", "nu_m_msg", null,
+			function () { return !!srvcfg.have_emp; },
+			null],
+
+		["unpost", "nu_m_unpost", "nu_m_unpost_m",
+			function () { return !!srvcfg.have_unpost; },
+			null]
+	]],
+
+	["nu_m_srv", [
+		["rups", "nu_m_rups", null,
+			function () { return !!srvcfg.have_up2k_idx; },
+			null],
+
+		["shr", "nu_m_shr", null,
+			function () { return !!srvcfg.have_shr; },
+			null],
+
+		["cfg", "nu_m_cfg", "nu_m_cfg_m",
+			function () { return true; },
+			null],
+
+		// --ui-nocpla is the admin's existing switch for exactly this link
+		// (browser.js:1299 hides #goh on it), so nu reads it rather than
+		// inventing a second one
+		["cpa", "nu_m_cpa", "nu_m_cpa_m",
+			function () { return !srvcfg.ui_nocpla; },
+			null],
+
+		["old", "nu_m_old", null,
+			function () { return true; },
+			function () {
+				// the escape hatch that used to be the nav bar's right slot,
+				// moved here as a HANDLER and not as a relocated element: the
+				// sheet renders from this table, so a boot-time onclick bound
+				// to a node would be destroyed on the first re-render.
+				//
+				// same logic it always had: the classic UI strips the query
+				// from the address bar, so a bare ?nu0 does not survive a
+				// reload and leaving has to unpin the cookie instead. see
+				// docs/nu-ui.md:26-32. 0002's ctx_old row navigates to ?nu0 on
+				// its own and never read #nu_old, so it is unaffected -- it is
+				// an accelerator, and this row is the visible door it
+				// accelerates.
+				if (STICKY)
+					return unpin();
+
+				location.href = location.pathname + "?nu0";
+			}]
+	]]
+];
+
+function menu_row(k) {
+	for (var a = 0; a < MENU.length; a++) {
+		var rows = MENU[a][1];
+		for (var b = 0; b < rows.length; b++)
+			if (rows[b][0] == k)
+				return rows[b];
+	}
+	return null;
+}
+
+function render_menu() {
+	var h = [];
+
+	for (var a = 0; a < MENU.length; a++) {
+		var sec = MENU[a], rows = [];
+
+		for (var b = 0; b < sec[1].length; b++) {
+			var m = sec[1][b], ok = false;
+			try { ok = !!m[3](); }
+			catch (ex) { }
+
+			if (!ok)
+				continue;
+
+			rows.push('<button type="button" class="nu_mrow" data-m="' +
+				esc(m[0]) + '"' + (m[4] ? "" : " disabled") + '>' +
+				'<span class="nu_mlab">' + esc(t(m[1])) + '</span>' +
+				(m[2] ? '<span class="nu_mmeta">' + esc(t(m[2])) + '</span>' : "") +
+				'<span class="nu_mgo">\u203a</span></button>');
+		}
+
+		// a section every row of which the server gated away prints no
+		// header either -- an empty "SERVER" heading is worse than no
+		// heading, it reads as a rendering bug
+		if (rows.length)
+			h.push('<h3 class="nu_mh">' + esc(t(sec[0])) + '</h3>' +
+				rows.join(""));
+	}
+
+	ebi("nu_mopts").innerHTML = h.join("");
 }
 
 function pick_sort(k) {
@@ -1375,12 +1510,6 @@ function tree_boot() {
 	ebi("nu_sh2").textContent = t("gt_sort");
 	ebi("nu_shint").textContent = t("nu_s_rev");
 
-	var esc_a = ebi("nu_old");
-	esc_a.textContent = t("nu_old");
-	esc_a.href = location.pathname + "?nu0";
-	if (STICKY)
-		esc_a.onclick = function (e) { e.preventDefault(); unpin(); };
-
 	var upa = ebi("nu_up");
 	if (!upa.classList.contains("nu_hidden"))
 		upa.href = keep(upa.getAttribute("href"));
@@ -1422,6 +1551,21 @@ function tree_boot() {
 		var b = e.target.closest(".nu_sopt");
 		if (b)
 			pick_sort(b.getAttribute("data-k"));
+	};
+
+	ebi("nu_mopts").onclick = function (e) {
+		var b = e.target.closest(".nu_mrow");
+		if (!b || b.disabled)
+			return;
+
+		var m = menu_row(b.getAttribute("data-m"));
+		// closed BEFORE the handler runs: a row that navigates would
+		// otherwise leave the sheet on screen for the length of the
+		// request, and unpin()'s xhr is not instant.
+		sheet("nu_menu", false);
+
+		if (m && m[4])
+			m[4]();
 	};
 
 	// one keydown listener for the whole UI, extended in place rather than
