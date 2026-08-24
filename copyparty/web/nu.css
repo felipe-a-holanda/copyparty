@@ -1032,6 +1032,7 @@ a {
 	#nu_menu,
 	#nu_tsh,
 	#nu_cfg,
+	#nu_vwr,
 	.nu_tgl,
 	.nu_tgl .nu_knob,
 	.nu_row {
@@ -1446,6 +1447,162 @@ button.nu_crow:focus-visible {
 .nu_csel:focus-visible {
 	outline: 2px solid var(--ring);
 	outline-offset: 1px;
+}
+
+/* ---- the image viewer (README:224-233) ----
+
+   the one surface in nu whose palette is written in literals instead of
+   tokens, and that is a decision rather than an oversight: an image is
+   judged against what surrounds it, so this frame is the same near-black in
+   both themes. --bg and --surface are the page's ground and would make the
+   light theme lie about what the user is looking at.
+
+   it is not a tenant of sheet() either -- it opens over whatever is already
+   open, keeps its hands off the veil, and closes back onto it. */
+#nu_vwr {
+	position: fixed;
+	inset: 0;
+	/* above the sheets (9) and the right-click menu (10). the viewer is the
+	   topmost surface nu has: a sort sheet left standing underneath has to
+	   be covered by it, not share the screen with it. */
+	z-index: 12;
+	display: flex;
+	flex-direction: column;
+	background: #0f0f14;
+	color: #f2f2f6;
+	opacity: 0;
+	transition: opacity .2s cubic-bezier(.2, .9, .3, 1);
+}
+
+#nu_vwr.on {
+	opacity: 1;
+}
+
+#nu_vwt {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 12px;
+	/* the overlay covers the notch, so it owns the top inset the header
+	   below it normally would */
+	padding-top: calc(8px + env(safe-area-inset-top));
+}
+
+#nu_vwx {
+	min-width: 44px;
+	min-height: 44px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: #cfc6f0;
+	font: 500 15px var(--font);
+	text-align: left;
+	cursor: pointer;
+}
+
+#nu_vwh {
+	flex: 1;
+	min-width: 0;
+	text-align: center;
+}
+
+#nu_vwn {
+	font-size: 15px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_vwm {
+	margin-top: 2px;
+	font-size: 11px;
+	color: #8f8fa3;
+}
+
+#nu_vwc {
+	min-width: 44px;
+	text-align: right;
+	font-size: 12px;
+	color: #8f8fa3;
+}
+
+/* `min-height: 0` is what lets the middle actually shrink: a flex child
+   defaults to min-height:auto, and a tall image inside one pushes the
+   footer off the bottom of the screen instead of scaling down. */
+#nu_vwb {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px;
+}
+
+#nu_vwg {
+	max-width: 100%;
+	max-height: 100%;
+	border-radius: 6px;
+	/* the design's hatch, which is also what a transparent png is read
+	   against -- and what stands in while the original is still loading */
+	background: repeating-linear-gradient(135deg, #26262f 0 10px, #1e1e26 10px 20px);
+}
+
+#nu_vwf {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 0 16px 6px;
+	padding-bottom: calc(26px + env(safe-area-inset-bottom));
+}
+
+#nu_vwp,
+#nu_vwnx {
+	flex: 0 0 auto;
+	min-width: 56px;
+	min-height: 48px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: #cfc6f0;
+	font: 22px/1 var(--font);
+	cursor: pointer;
+}
+
+#nu_vwnx {
+	text-align: right;
+}
+
+#nu_vwa {
+	display: flex;
+	gap: 8px;
+	min-width: 0;
+}
+
+.nu_vact {
+	min-height: 44px;
+	padding: 0 18px;
+	border: 0;
+	border-radius: 14px;
+	background: #23232d;
+	color: #f2f2f6;
+	font: 500 14px var(--font);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+/* the ring is the viewer's own violet and not --ring: --ring is tuned
+   against a light page and disappears on #0f0f14 */
+#nu_vwx:focus-visible,
+#nu_vwp:focus-visible,
+#nu_vwnx:focus-visible,
+.nu_vact:focus-visible {
+	outline: 2px solid #cfc6f0;
+	outline-offset: 2px;
+	border-radius: 8px;
 }
 
 /* ---- folder tree ----
@@ -1987,6 +2144,39 @@ button.nu_crow:focus-visible {
 
 	#nu_cfgt {
 		padding-top: 0;
+	}
+
+	/* the viewer stops being a full-bleed phone overlay (spec 0002 D5). it
+	   is still a modal over the whole window -- an image being looked at
+	   wants the screen dark around it at every width -- but what sits
+	   inside it changes: the image is BOUNDED rather than edge to edge, and
+	   the three actions sit in a bar of their own instead of floating on
+	   the backdrop. prev/next stay where they are and gain the arrow keys,
+	   which nu.js claims in the one keydown listener.
+
+	   there is no safe-area inset to pay up here, so both ends give it
+	   back: env() answers 0 on a desktop anyway, and paying it twice in
+	   calc() is how a phone metric survives into a layout that never had a
+	   notch. */
+	#nu_vwt {
+		padding-top: 8px;
+	}
+
+	#nu_vwb {
+		padding: 20px 40px;
+	}
+
+	#nu_vwg {
+		max-width: min(100%, 72em);
+		box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+	}
+
+	#nu_vwf {
+		width: min(72em, calc(100vw - 80px));
+		margin: 0 auto 24px;
+		padding: 8px 12px;
+		border-radius: 16px;
+		background: #17171d;
 	}
 
 	.nu_ccard {

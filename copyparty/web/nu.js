@@ -4,8 +4,9 @@
 // this is the base layer: list, row, navigation, header (search, filter
 // chips, status line), sorting, the action bar, the ... router, the
 // preference layer, the settings screen, the grid and the folder tree in
-// both of its containers.
-// selection, swipe and the image viewer are not here yet -- until they
+// both of its containers -- and, on top of it, selection mode, the swipe,
+// pull-to-refresh and the image viewer.
+// upload (spec 0001 D2) and recursive search are not here yet -- until they
 // are, the router's `classic UI` row is the door to them.
 //
 // house style, same as the rest of web/: plain ES5-ish JS, no build step,
@@ -181,6 +182,14 @@ Ls.eng = {
 	nu_selinv: "Invert",
 	nu_selall_t: "Select everything the filter is showing",
 	nu_selinv_t: "Invert the selection over what the filter is showing",
+
+	// the image viewer. not one of its three actions is a new string --
+	// Baixar is ctx_dl, Link is the swipe's own label and Excluir is
+	// nu_a_rm -- so what is new here is the door out and the two arrows,
+	// which are glyphs and need a name a screen reader can read.
+	nu_vw_x: "Close",
+	nu_vw_p: "Previous image",
+	nu_vw_n: "Next image",
 
 	// the status line and a folder's own count
 	nu_item: "item",
@@ -550,7 +559,17 @@ var ST = {
 	// is the last checkbox touched -- what a shift-click extends from.
 	selmode: false,
 	sel: {},
-	selanchor: null
+	selanchor: null,
+	// the image viewer. `vlist` is the images the viewer walks -- the
+	// folder's, in the order the list is showing them -- and it is also
+	// the answer to "is the viewer open": a null list and an open viewer
+	// are not two states, they are the same one, so there is no second
+	// boolean to disagree with it. `vi` is the index into that list and
+	// `vy` the scroll position the folder is standing at, kept so closing
+	// can put the page back where the tap left it.
+	vlist: null,
+	vi: 0,
+	vy: 0
 };
 
 // -- mode plumbing -----------------------------------------------------
@@ -1026,8 +1045,27 @@ function sel_click(e) {
 	var ck = el.closest(".nu_ck, .nu_tk"),
 		mod = e.shiftKey || e.ctrlKey || e.metaKey;
 
-	if (!ck && !mod)
+	if (!ck && !mod) {
+		// a plain tap on an image is the viewer's door (README:242), and it
+		// is taken HERE rather than in a second listener on #nu_list: this
+		// handler has already answered the two questions a second one would
+		// have to answer again -- the long-press's swallowed click and the
+		// row standing open -- and the day the two disagreed the file would
+		// open behind the swipe track that was meant to close.
+		//
+		// one door, two entry points: `.nu_row` and `.nu_tile` are the same
+		// closest() above, so a tile in grid view opens the same viewer at
+		// the same index.
+		//
+		// not in selection mode: a tap in there is about the selection, and
+		// a full-screen overlay dropped over one is not what the thumb
+		// meant. every other row falls through to its own href, untouched.
+		var f = ST.selmode ? null : item_by_key(row.getAttribute("data-k"));
+		if (f && !isdir(f) && kind_of(f) == "img" && vw_open(f))
+			e.preventDefault();
+
 		return;
+	}
 
 	// ctrl-click on a link is normally "open in a new tab" and shift-click
 	// is "open in a new window"; 0002 D2 spends both on selection, exactly
@@ -2917,6 +2955,258 @@ function ctx_bind(on) {
 	}
 }
 
+// -- the image viewer --------------------------------------------------
+//
+// a full-screen overlay over the listing (README:224-233), and deliberately
+// NOT a fifth tenant of sheet(). sheet() owns one veil and the rule that at
+// most one of its tenants is open at a time; the viewer's contract is the
+// opposite one -- it opens OVER whatever is already open and gives it back
+// untouched. so it carries its own z-index (nu.css), its own transition,
+// and its own branch in the ONE keydown listener rather than a second one.
+//
+// what is NOT here, per the handoff's coverage matrix: zoom, swipe between
+// images, and slideshow. prev/next are here and they wrap.
+//
+// there is no FOURTH writer of #nu_list either -- the grid's three are
+// still the whole set (render_list, render_grid, fetch_ls's error). the
+// viewer is its own element start to finish, and the only thing it
+// renders is its own three action buttons.
+
+// the viewer's list is the folder's images IN VISIBLE ORDER: filtered()'s
+// output and not ST.items, so the arrows agree with the list the user
+// tapped out of. a filter that is hiding half the folder is hiding it from
+// the walk too, which is the only reading of "in visible order" that does
+// not surprise somebody.
+function vw_imgs() {
+	var shown = filtered(), ret = [];
+
+	for (var a = 0; a < shown.length; a++)
+		if (!isdir(shown[a]) && kind_of(shown[a]) == "img")
+			ret.push(shown[a]);
+
+	return ret;
+}
+
+// the subtitle: dimensions, size, date. the dimensions are the one field
+// nothing on the wire carries -- `?ls` has sz and ts and no pixel count --
+// so they arrive with the decoded image and the line is drawn twice, once
+// without them and once with.
+function vw_meta(f, dim) {
+	var p = [], d = dt_short(f);
+
+	if (dim)
+		p.push(dim);
+
+	if (f.sz)
+		p.push(humansize(f.sz));
+
+	if (d)
+		p.push(d);
+
+	return p.join(" · ");
+}
+
+// the footer's three actions.
+//
+//   [ key, label key, ok(), do(f) ]
+//
+// not one of them is a new door, and that is the point: Baixar is the
+// context menu's own download, Link is copy_link(), and Excluir posts
+// through the same rm_send() the selection bar, the swipe and the
+// right-click row already share. a second delete path is precisely what
+// this card must not mint.
+var VACTS = [
+	["dl", "ctx_dl",
+		function () { return true; },
+		function (f) {
+			// `dl` is the server's force-download switch (httpcli.py's
+			// ouparam handling at :4714 and :4891); the bytes are the ones
+			// the viewer is already showing
+			var h = f.href;
+			location.href = h + (h.indexOf("?") < 0 ? "?dl" : "&dl");
+		}],
+
+	["link", "nu_sw_link",
+		function () { return true; },
+		function (f) { copy_link(f); }],
+
+	["rm", "nu_a_rm",
+		function () {
+			return !!srvcfg.have_del && !!(perms && perms.indexOf("delete") + 1);
+		},
+		function (f) {
+			// one tap on a 44px button is not two deliberate acts, so this
+			// asks -- the same line the right-click row's delete draws. the
+			// swipe's does not, because it already cost a drag and a tap.
+			try {
+				if (!confirm(t("nu_rm_ask").replace("%", nm(f))))
+					return;
+			}
+			catch (ex) { return; }
+
+			// closed BEFORE the request, and in this order on purpose: the
+			// file the viewer is showing is about to stop existing, the
+			// refresh rm_send() runs on completion redraws the listing
+			// underneath, and the user is standing on it when it lands.
+			vw_close();
+			rm_send([vp_of(f)]);
+		}]
+];
+
+// rendered once per open and not per image: the gates are volume facts, and
+// nothing in the footer changes between two images of the same folder.
+function render_vacts() {
+	var h = [];
+
+	for (var a = 0; a < VACTS.length; a++) {
+		var v = VACTS[a], ok = false;
+		try { ok = !!v[2](); }
+		catch (ex) { }
+
+		// omitted rather than disabled: the action bar's dead button exists
+		// to be tapped and explain itself (spec 0001 D2), but a volume with
+		// --no-del has nothing to explain -- there is no delete anywhere in
+		// this UI for that volume, and an inert button here would be the
+		// only place claiming otherwise.
+		if (ok)
+			h.push('<button type="button" class="nu_vact" data-v="' +
+				esc(v[0]) + '">' + esc(t(v[1])) + '</button>');
+	}
+
+	ebi("nu_vwa").innerHTML = h.join("");
+}
+
+function vw_click(e) {
+	var b = e.target && e.target.closest ? e.target.closest(".nu_vact") : null;
+	if (!b || !ST.vlist)
+		return;
+
+	var f = ST.vlist[ST.vi], k = b.getAttribute("data-v");
+	if (!f)
+		return;
+
+	for (var a = 0; a < VACTS.length; a++)
+		if (VACTS[a][0] == k)
+			return VACTS[a][3](f);
+}
+
+function vw_draw() {
+	var list = ST.vlist;
+	if (!list || !list.length)
+		return;
+
+	var f = list[ST.vi],
+		im = ebi("nu_vwg");
+
+	// textContent and not innerHTML, all three: a file name is user input,
+	// and the only thing this file ever hands to innerHTML is a string it
+	// built itself out of esc()
+	ebi("nu_vwn").textContent = nm(f);
+	ebi("nu_vwm").textContent = vw_meta(f, null);
+	ebi("nu_vwc").textContent = (ST.vi + 1) + " / " + list.length;
+
+	im.onload = function () {
+		// the answer belongs to the image that is still showing: a slow
+		// load landing after two taps of `>` must not relabel the third
+		// image with the first one's dimensions
+		if (ST.vlist && ST.vlist[ST.vi] === f && im.naturalWidth)
+			ebi("nu_vwm").textContent = vw_meta(f,
+				im.naturalWidth + " × " + im.naturalHeight);
+	};
+
+	// the ORIGINAL, never `?th=`: a thumbnail is a 256px crop of this, and
+	// this is the surface the file is actually being looked at on. f.href
+	// is the listing's own url -- already encoded, already carrying the
+	// dirkey we arrived through, and deliberately without `?nu`.
+	im.src = f.href;
+}
+
+// wraps, both ways: the handoff's list "circula" (README:232-233), so `>`
+// off the end is the first image and `<` off the front is the last.
+function vw_go(d) {
+	var list = ST.vlist;
+	if (!list || !list.length)
+		return;
+
+	ST.vi = (ST.vi + d + list.length) % list.length;
+	vw_draw();
+}
+
+function vw_open(f) {
+	var list = vw_imgs(), k = nm(f), i = -1;
+
+	for (var a = 0; a < list.length; a++)
+		if (nm(list[a]) == k) {
+			i = a;
+			break;
+		}
+
+	// not an image, or an image the filter is not showing: the tap falls
+	// through to the row's own href, which is what a non-image row does
+	if (i < 0)
+		return false;
+
+	// the two surfaces that own the list underneath. a swipe track left
+	// open would still be open when the viewer closes, over whichever row
+	// inherited its offset; a right-click menu would sit on top of a modal.
+	sw_close();
+	ctx_hide();
+
+	ST.vlist = list;
+	ST.vi = i;
+	// the page does not scroll while the viewer is up -- but "closing
+	// returns to the same scroll position" is a promise, and a promise that
+	// depends on nothing ever moving the document is not one
+	ST.vy = scroll_y();
+
+	var el = ebi("nu_vwr");
+	render_vacts();
+	vw_draw();
+
+	el.hidden = false;
+	// the same synchronous reflow sheet() forces, for the same reason: the
+	// browser has to register hidden->shown before the class transitions
+	void el.offsetHeight;
+	el.classList.add("on");
+
+	// the focus goes INTO the modal, and that is also what makes the
+	// keydown branch safe to sit above the typing guard: there is nothing
+	// in here to type into, and the focus is no longer on a row.
+	try { ebi("nu_vwx").focus(); }
+	catch (ex) { }
+
+	return true;
+}
+
+function vw_close() {
+	if (!ST.vlist)
+		return;
+
+	var el = ebi("nu_vwr"),
+		im = ebi("nu_vwg"),
+		y = ST.vy;
+
+	ST.vlist = null;
+	el.classList.remove("on");
+
+	// the src is dropped on the way out: a 40-megapixel jpeg decoded behind
+	// a hidden overlay is memory nobody is looking at. removeAttribute and
+	// not `src = ""`, which is a request for the current page.
+	im.onload = null;
+	im.removeAttribute("src");
+
+	setTimeout(function () {
+		// asks about THIS open and not about the viewer in general -- the
+		// same reason sheet()'s teardown asks: something reopened inside
+		// the window would otherwise be hidden by its predecessor's timer
+		if (!ST.vlist)
+			el.hidden = true;
+	}, 200);
+
+	try { window.scrollTo(0, y); }
+	catch (ex) { }
+}
+
 // -- load --------------------------------------------------------------
 
 function take(ls) {
@@ -3624,6 +3914,17 @@ function set_dots(v) {
 			pick_sort(b.getAttribute("data-k"));
 	};
 
+	// the image viewer's three fixed controls. its three ACTIONS are
+	// delegated instead, off #nu_vwa, because they are rendered from VACTS
+	// and gated on the volume -- the same split the action bar lives by.
+	ebi("nu_vwx").textContent = t("nu_vw_x");
+	ebi("nu_vwp").setAttribute("aria-label", t("nu_vw_p"));
+	ebi("nu_vwnx").setAttribute("aria-label", t("nu_vw_n"));
+	ebi("nu_vwx").onclick = vw_close;
+	ebi("nu_vwp").onclick = function () { vw_go(-1); };
+	ebi("nu_vwnx").onclick = function () { vw_go(1); };
+	ebi("nu_vwa").onclick = vw_click;
+
 	// the back chevron is the screen's own door out; Escape is the keyboard's
 	// and it is already handled for every tenant of sheet().
 	ebi("nu_cfgx").onclick = function () { sheet("nu_cfg", false); };
@@ -3650,6 +3951,43 @@ function set_dots(v) {
 	// invisible.
 	document.addEventListener("keydown", function (e) {
 		var k = e.key;
+
+		// THE VIEWER OWNS THE KEYBOARD WHILE IT IS OPEN, and it says so in
+		// the one listener rather than in a second one -- two listeners on
+		// document would each have to re-derive the typing guard below, and
+		// the day they disagreed the bug would be invisible.
+		//
+		// it is above the Escape branch, not folded into it, because those
+		// two Escapes mean different things: the viewer opens OVER an open
+		// sheet and gives it back, so Escape here must close the viewer and
+		// leave the sort sheet exactly where it was.
+		//
+		// it is above the typing guard for the same reason Escape is, plus
+		// one of its own: vw_open() puts the focus inside the modal and
+		// there is nothing in there to type into.
+		//
+		// and it RETURNS unconditionally. that is the load-bearing line: it
+		// is what keeps the arrows below from walking the list underneath a
+		// modal, which would drag the focus out from under it -- exactly
+		// what the `ctx_row` short-circuit further down does for the menu.
+		// only the three keys the viewer actually answers are taken from
+		// the browser; the rest simply stop here.
+		if (ST.vlist) {
+			if (k == "Escape") {
+				e.preventDefault();
+				vw_close();
+			}
+			else if (k == "ArrowLeft") {
+				e.preventDefault();
+				vw_go(-1);
+			}
+			else if (k == "ArrowRight") {
+				e.preventDefault();
+				vw_go(1);
+			}
+
+			return;
+		}
 
 		// Escape comes FIRST, above the typing guard on purpose: a text
 		// field eats arrow keys, but it does not eat Escape, and the place
