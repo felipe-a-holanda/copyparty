@@ -3,10 +3,10 @@ number: 0001
 type: spec
 slug: nu-the-rest-of-the-mobile-design
 title: "The rest of the mobile design: nu beyond the base layer"
-status: planejado
+status: pousado
 created: 2026-08-23
 headline: A phone can browse, sort, select, move, delete, share and preview files in the new UI without ever falling back to the old one, and the settings it offers finally stick.
-tags: [spec, status/planejado]
+tags: [spec, status/pousado]
 par: "[[plans/0001-nu-the-rest-of-the-mobile-design|plan]]"
 ---
 
