@@ -245,7 +245,10 @@ var ST = {
 	q: "",
 	sortKey: "name",
 	sortDir: 1,
-	sheet: false,
+	// the OPEN SHEET'S ELEMENT ID, or null -- not a boolean. "is a sheet
+	// open" and "which sheet is open" stopped being the same question the
+	// moment there was more than one tenant.
+	sheet: null,
 	// the folder tree: `root` is one node (see tree_node), `expanded` is
 	// vpath -> bool, the open/closed state. a node's `kids` is the cache,
 	// so collapsing and reopening a branch costs no second request.
@@ -610,12 +613,37 @@ function render_sheet() {
 	ebi("nu_sopts").innerHTML = h.join("");
 }
 
-function sheet(on) {
-	ST.sheet = on;
-	var s = ebi("nu_sheet"), v = ebi("nu_veil");
+// -- the sheet machinery -----------------------------------------------
+//
+// one veil, at most one open sheet, N tenants: the sort sheet is the first
+// and 0001's `...` router is the second. a tenant is an element id plus a
+// renderer, and nothing below this line knows which sheet it is moving.
+//
+// a renderer is optional -- a sheet whose markup is static registers null
+// and still gets the veil, the transition and the Escape handling.
+
+var SHEETS = {
+	nu_sheet: render_sheet
+};
+
+function sheet(id, on) {
+	var s = ebi(id), v = ebi("nu_veil");
+	if (!s)
+		return;
 
 	if (on) {
-		render_sheet();
+		// two sheets over one veil would leave the loser sitting behind it,
+		// so opening one closes whatever else is open first. this recurses
+		// exactly once: the inner call takes the else branch.
+		if (ST.sheet && ST.sheet != id)
+			sheet(ST.sheet, false);
+
+		ST.sheet = id;
+
+		var r = SHEETS[id];
+		if (r)
+			r();
+
 		s.hidden = v.hidden = false;
 		// force a synchronous reflow so the browser registers the
 		// hidden->shown state before the class starts the transition.
@@ -627,11 +655,23 @@ function sheet(on) {
 		v.classList.add("on");
 	}
 	else {
+		if (ST.sheet == id)
+			ST.sheet = null;
+
 		s.classList.remove("on");
 		v.classList.remove("on");
 		setTimeout(function () {
+			// the teardown asks about THIS sheet, not about sheets in
+			// general: something opened inside the 280ms window -- this one
+			// reopened, or another one opened over it -- would otherwise be
+			// hidden by its predecessor's timer, visibly, a third of a
+			// second after the tap that opened it.
+			if (ST.sheet != id)
+				s.hidden = true;
+
+			// the veil is shared, so it goes only when nothing is left
 			if (!ST.sheet)
-				s.hidden = v.hidden = true;
+				v.hidden = true;
 		}, 280);
 	}
 }
@@ -1244,8 +1284,13 @@ function tree_boot() {
 			pick_sort(b.getAttribute("data-k"));
 	};
 
-	ebi("nu_sort").onclick = function () { sheet(!ST.sheet); };
-	ebi("nu_veil").onclick = function () { sheet(false); };
+	ebi("nu_sort").onclick = function () {
+		sheet("nu_sheet", ST.sheet != "nu_sheet");
+	};
+	ebi("nu_veil").onclick = function () {
+		if (ST.sheet)
+			sheet(ST.sheet, false);
+	};
 	ebi("nu_sopts").onclick = function (e) {
 		var b = e.target.closest(".nu_sopt");
 		if (b)
@@ -1268,7 +1313,7 @@ function tree_boot() {
 			ctx_hide();
 
 			if (ST.sheet)
-				sheet(false);
+				sheet(ST.sheet, false);
 
 			return;
 		}
