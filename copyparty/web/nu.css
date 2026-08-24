@@ -392,6 +392,54 @@ a {
 	-webkit-appearance: none;
 }
 
+/* the search strip: what the last submit answered, or why it did not. it
+   sits between the box and the chips, and js keeps the `hidden` attribute
+   on it whenever there is nothing to say -- so it costs no pixels at all
+   until Enter is pressed.
+
+   the [hidden] rule is not redundant: `display: flex` out-specifies the
+   UA's own `[hidden] { display: none }`, so without it the strip would be
+   a permanent empty 12px band on every unindexed volume in the world. */
+#nu_qmsg {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 10px;
+	margin: 0 16px 8px;
+	font: 12px var(--font);
+	color: var(--fg2);
+}
+
+#nu_qmsg[hidden] {
+	display: none;
+}
+
+/* the message gives way, the button never does: "search failed -- rate
+   limit 0.7 sec, cost 1.31, idle 0.02" is a sentence, and the way out of
+   it must not be the thing that wraps off the end of the line. */
+.nu_qt {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_qx {
+	flex: 0 0 auto;
+	border: 0;
+	background: none;
+	padding: 0;
+	font: 500 12px var(--font);
+	color: var(--accent);
+	cursor: pointer;
+}
+
+#nu_qx:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+	border-radius: 6px;
+}
+
 #nu_chips {
 	display: flex;
 	gap: 6px;
@@ -2014,6 +2062,18 @@ button.nu_crow:focus-visible {
 		grid-row: 2;
 		grid-column: 2;
 		padding: 8px 0;
+	}
+
+	/* the fifth child, and the reason it needs a rule at all: the four
+	   above claim their cells by name, so an unplaced fifth would be
+	   auto-flowed into whichever hole was left -- row 1 column 1, on top
+	   of the nav bar. it takes a row of its own, full width, and only
+	   while it has something to say (js keeps `hidden` on it otherwise). */
+	#nu_qmsg {
+		grid-row: 3;
+		grid-column: 1 / -1;
+		margin: 0;
+		padding: 0 0 8px;
 	}
 
 	/* ---- the wide placement of 0001's action bar ----

@@ -5,9 +5,9 @@
 // chips, status line), sorting, the action bar, the ... router, the
 // preference layer, the settings screen, the grid and the folder tree in
 // both of its containers -- and, on top of it, selection mode, the swipe,
-// pull-to-refresh and the image viewer.
-// upload (spec 0001 D2) and recursive search are not here yet -- until they
-// are, the router's `classic UI` row is the door to them.
+// pull-to-refresh, the image viewer and recursive search.
+// upload (spec 0001 D2) is not here yet -- until it is, the router's
+// `classic UI` row is the door to it.
 //
 // house style, same as the rest of web/: plain ES5-ish JS, no build step,
 // no framework.
@@ -90,8 +90,24 @@ Ls.eng = {
 	nu_tsh_wait: "loading\u2026",
 	nu_tsh_err: "could not load the folder tree",
 
-	// the header's static text, filled at boot
+	// the header's static text, filled at boot. the box makes exactly the
+	// promise the volume can keep: `nu_q` on a volume with no index, where
+	// filtered() is the only tier there is and it never leaves this folder,
+	// and `nu_qr` where Enter can reach past it.
 	nu_q: "Search in this folder",
+	nu_qr: "Search this folder and below",
+
+	// the search strip: what the last submit answered, or why it did not.
+	// `nu_q_err` is not decoration -- the server rate-limits consecutive
+	// searches, and a 429 swallowed into "0 results" tells the user their
+	// file is gone when what happened is that they pressed Enter twice.
+	nu_q_busy: "searching…",
+	nu_q_hit: "% result",
+	nu_q_hits: "% results",
+	nu_q_more: "(the first %; narrow the search for the rest)",
+	nu_q_err: "search failed — %",
+	nu_q_net: "search failed — could not reach the server",
+	nu_q_off: "Clear",
 
 	// the action bar, at both of its placements. its selection slot set is
 	// three more rows in the same table shape, and `Baixar` is not a new
@@ -569,7 +585,14 @@ var ST = {
 	// can put the page back where the tap left it.
 	vlist: null,
 	vi: 0,
-	vy: 0
+	vy: 0,
+	// recursive search. `q` is the query the rows on screen answer, and
+	// null whenever the list is the folder we are standing in -- there is
+	// no second "are we searching" boolean to disagree with it, the same
+	// rule `vlist` above lives by. `folder` is the listing the hits
+	// displaced, kept so clearing the box puts it back without a second
+	// `?ls`; `busy`, `err` and `trunc` are the message strip's whole state.
+	srch: { q: null, folder: null, busy: false, err: "", trunc: false }
 };
 
 // -- mode plumbing -----------------------------------------------------
@@ -769,12 +792,295 @@ function filtered() {
 		if (want && kind_of(f) != want)
 			continue;
 
-		if (q && nm(f).toLowerCase().indexOf(q) < 0)
+		// the substring test is skipped while search hits are the list,
+		// and the filter chips are not. the server has already answered
+		// this query, and it answered it in SQL -- `name like %q%`, where
+		// `%` and `_` are wildcards and the match is case-insensitive --
+		// so re-testing each hit with indexOf() would silently drop rows
+		// the server matched on purpose, and the screen would then
+		// contradict the count in the strip above it.
+		if (q && ST.srch.q === null && nm(f).toLowerCase().indexOf(q) < 0)
 			continue;
 
 		ret.push(f);
 	}
 	return sorted(ret);
+}
+
+// -- recursive search --------------------------------------------------
+//
+// the SECOND tier of one question. filtered() above answers "in this
+// folder", instantly and for free, while the user types; this one answers
+// "here and below" on Enter and costs a database query on the server. so
+// it is gated three ways: on the volume having an index, on submit rather
+// than on a keystroke, and on the previous request having finished.
+//
+// the index gate is `cfg.idx` -- `"e2d" in vf` (authsrv.py:3265), per
+// VOLUME and not per server, which is why it is read off `cfg` and not off
+// `srvcfg`. and it is a hard gate rather than an optimisation, because the
+// failure it prevents is silent: measured against a live server with no
+// -e2d, `POST /?srch` does not fail. it answers **200 with an empty hit
+// list** -- u2idx.get_cur() returns None for a volume with no e2d flag
+// (u2idx.py:165-168) and run_query simply skips it -- which on screen is
+// indistinguishable from "nothing matched". the 500 in handle_search
+// (httpcli.py:3269-3272) is about the u2idx pool being unavailable, not
+// about the index being absent. an unindexed volume therefore has to keep
+// promising only what filtered() can deliver, and send nothing.
+
+// 125 hits, which is the classic UI's own first-page cap (browser.js:6511)
+// and far under the server's --srch-hits clamp of 7999. `n` is optional --
+// handle_search defaults it to --srch-hits (httpcli.py:3305) -- but
+// omitting it would make the size of the reply an admin's setting rather
+// than a screenful, and `trunc` in the reply is how the strip says there
+// is more.
+var SRCH_N = 125;
+
+function can_srch() {
+	return !!(cfg && cfg.idx);
+}
+
+// the folder we are standing in, decoded, with no leading or trailing
+// slash. this one still carries the reverse-proxy prefix, because it is
+// what a hit's `rp` is measured against.
+function here_path() {
+	var p = location.pathname;
+	try { p = decodeURIComponent(p); }
+	catch (ex) { }
+
+	return p.replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+// the same folder as the search index spells it: the prefix taken back
+// off. `path` in the db is built from the volume's own vpath and the row's
+// rd (u2idx.py:272) and knows nothing about how the deployment is mounted,
+// so a query written from location.pathname would match nothing at all
+// behind a reverse proxy -- and match everything, unscoped, if the clause
+// were then dropped.
+function here_vp() {
+	var p = here_path(),
+		r = SR.replace(/^\/+/, "").replace(/\/+$/, "");
+
+	if (!r)
+		return p;
+
+	if (p == r)
+		return "";
+
+	return p.indexOf(r + "/") === 0 ? p.slice(r.length + 1) : p;
+}
+
+// a value in the search DSL is delimited by spaces unless it is quoted,
+// and inside quotes a `"` is written `\"` (u2idx.py:249-256). everything
+// is quoted here rather than only the values with a space in them, which
+// is what the classic UI does (browser.js:6680-6682): the alternative is a
+// rule about which characters are safe, and the value is the user's own
+// typing.
+function srch_val(v) {
+	return '"' + String(v).replace(/"/g, '\\"') + '"';
+}
+
+// "here and below", in the DSL's own terms. `path` is the CONTAINING
+// FOLDER's vpath, not the file's (u2idx.py:272), so the subtree is two
+// clauses and not one prefix: `path like here/*` alone would miss the
+// files sitting in this folder itself, and `path like here*` would sweep
+// in the sibling called `here-old`.
+//
+// at the server root there is no clause at all. handle_search already
+// searches every volume the user can read (its `self.rvol` loop) and from
+// the root that is exactly what "and below" means -- a `path like "*"`
+// bolted on would only cost a casefold() per row to say the same thing.
+function srch_q(q) {
+	var here = here_vp(),
+		s = "name like " + srch_val("*" + q + "*");
+
+	if (here)
+		s = "( path = " + srch_val(here) + " or path like " +
+			srch_val(here + "/*") + " ) and " + s;
+
+	return s;
+}
+
+// a hit is `{ts, sz, rp, tags}` and `rp` is the url-encoded vpath WITHOUT
+// a leading slash, already carrying the reverse-proxy prefix where there
+// is one (handle_search prefixes args.RS itself, httpcli.py:3323-3325) --
+// so the href is "/" + rp and never SR + "/" + rp, which would spell the
+// prefix twice. it may also carry a `?k=` filekey on an fk volume
+// (u2idx.py:481-489), which is part of the href and not part of the path.
+//
+// what this function returns is an ITEM: the same shape `?ls` hands take(),
+// so a hit renders through render_list and render_grid with no third row
+// markup -- and a third one would break the wide band's column grid, which
+// places cells by name and not by child order. `name` is what nm() answers
+// and therefore what the name cell shows and what the selection keys on;
+// `sz` and `ts` are what the size and date cells read.
+//
+// `name` is the path RELATIVE to the folder the search was scoped to,
+// because that is the question the row is answering: the user asked "here
+// and below", so "two/deep needle.txt" says where it is, and the volume's
+// full vpath would only say where we already are all over again. `vp`
+// carries the absolute form for vp_of(), which is the one `?delete` wants.
+function hit_item(h) {
+	var rp = String((h && h.rp) || ""),
+		vp = rp.split("?")[0];
+
+	try { vp = decodeURIComponent(vp); }
+	catch (ex) { }
+
+	var name = vp,
+		here = here_path();
+
+	if (here && name.indexOf(here + "/") === 0)
+		name = name.slice(here.length + 1);
+
+	return {
+		href: "/" + rp,
+		name: name,
+		vp: "/" + vp,
+		sz: h.sz || 0,
+		ts: h.ts || 0,
+		tags: h.tags || {}
+	};
+}
+
+// the message strip's four states, rendered into #nu_qmsg -- which is NOT
+// a row and does not live in #nu_list. two reasons, and both of them are
+// the 429: an error has to say so whether the list behind it is empty or
+// still holding the previous query's hits, and #nu_list is aria-live, so
+// an error announced through it is announced as a listing update.
+function render_qmsg() {
+	var el = ebi("nu_qmsg");
+	if (!el)
+		return;
+
+	var txt = "", off = false;
+
+	if (ST.srch.busy)
+		txt = t("nu_q_busy");
+	else if (ST.srch.err) {
+		txt = t("nu_q_err").replace("%", ST.srch.err);
+		off = true;
+	}
+	else if (ST.srch.q !== null) {
+		var n = ST.items.length;
+		txt = t(n == 1 ? "nu_q_hit" : "nu_q_hits").replace("%", n) +
+			(ST.srch.trunc ? " " + t("nu_q_more").replace("%", SRCH_N) : "");
+		off = true;
+	}
+
+	el.hidden = !txt;
+	el.innerHTML = !txt ? "" : '<span class="nu_qt">' + esc(txt) + '</span>' +
+		(off ? '<button type="button" id="nu_qx">' +
+			esc(t("nu_q_off")) + '</button>' : "");
+}
+
+function srch_go(q) {
+	q = String(q || "").trim();
+	if (!q)
+		return srch_off(true);
+
+	// two submits in a row are one submit and one ignored keystroke: the
+	// server's rate limit is a 429 and not a queue, and a request fired
+	// under an outstanding one could also land out of order.
+	if (!can_srch() || ST.srch.busy)
+		return;
+
+	ST.srch.busy = true;
+	ST.srch.err = "";
+	render_qmsg();
+
+	var xhr = new XMLHttpRequest();
+	// posted at the ROOT, exactly like the classic UI (browser.js:6700),
+	// and not at the folder we are standing in: handle_search never looks
+	// at the request's vpath -- it searches every volume the user can read
+	// and the scoping is srch_q()'s clause -- so aiming it at a folder
+	// would only add that folder's own permission check to a request that
+	// does not need it.
+	xhr.open("POST", SR + "/?srch", true);
+	// text/plain rather than application/json, the same choice rm_send
+	// makes: handle_post_json takes either and text/plain is not a cors
+	// preflight. responseType is deliberately NOT set to "json" either --
+	// the interesting replies here are the ones that are not 200, and
+	// responseText throws on an xhr that was told to expect json.
+	xhr.setRequestHeader("Content-Type", "text/plain");
+	xhr.onloadend = function () {
+		ST.srch.busy = false;
+
+		if (this.status != 200) {
+			// the body is plain text and can arrive wrapped in <pre>
+			// (loud_reply, httpcli.py:1251-1256); the classic UI strips
+			// the same tag (hunpre, util.js:1738-1740). one line of it is
+			// what fits -- 429's is "rate-limit 0.7 sec, cost ..., idle
+			// ..." (httpcli.py:3286-3291), which says the whole thing.
+			var m = String(this.responseText || "")
+				.replace(/^<pre>/, "").split("\n")[0].trim();
+
+			ST.srch.err = this.status ?
+				("HTTP " + this.status + (m ? ": " + m : "")) : t("nu_q_net");
+
+			return render_qmsg();
+		}
+
+		var r = this.response;
+		if (typeof r == "string" || r === null)
+			try { r = JSON.parse(this.responseText); }
+			catch (ex) { r = null; }
+
+		if (!r || !r.hits) {
+			ST.srch.err = t("nu_q_net");
+			return render_qmsg();
+		}
+
+		srch_take(q, r);
+	};
+	xhr.send(JSON.stringify({ q: srch_q(q), n: SRCH_N }));
+}
+
+function srch_take(q, r) {
+	var hits = r.hits, items = [];
+	for (var a = 0; a < hits.length; a++)
+		items.push(hit_item(hits[a]));
+
+	// the folder is stashed on the FIRST search and never on a later one:
+	// a second query must not overwrite the stash with the first query's
+	// hits, or `Clear` would put a search result back where the folder was.
+	if (ST.srch.q === null)
+		ST.srch.folder = ST.items;
+
+	ST.srch.q = q;
+	ST.srch.trunc = !!r.trunc;
+	ST.items = items;
+	ST.sel = {};
+
+	// the rows are files in other folders now, so the selection they were
+	// made over is gone -- and set_sel() ends in the draw this needs.
+	set_sel(false);
+	render_qmsg();
+}
+
+// back to the folder. `clear` is what the strip's own button passes: that
+// affordance empties the box as well, while a navigation, a refresh or the
+// little x in the search field only takes the hits down.
+function srch_off(clear) {
+	if (clear) {
+		var el = ebi("nu_q");
+		if (el)
+			el.value = "";
+
+		ST.q = "";
+	}
+
+	ST.srch.err = "";
+	ST.srch.trunc = false;
+
+	if (ST.srch.q !== null) {
+		ST.srch.q = null;
+		ST.items = ST.srch.folder || [];
+		ST.srch.folder = null;
+		ST.sel = {};
+	}
+
+	render_qmsg();
+	draw();
 }
 
 // -- selection ---------------------------------------------------------
@@ -835,6 +1141,13 @@ function sel_list() {
 // location.pathname is the encoded form, so it is decoded here too; nm()
 // already answers decoded.
 function vp_of(f) {
+	// a search hit is not in the folder we are standing in, and it carries
+	// its own absolute vpath for exactly this caller (hit_item). the swipe
+	// and the right-click row are both reachable over a hit, and both end
+	// in rm_send().
+	if (f.vp)
+		return f.vp;
+
 	var base = location.pathname;
 	if (base.slice(-1) != "/")
 		base += "/";
@@ -923,8 +1236,14 @@ function item_by_key(k) {
 // the one door in and out of the mode. leaving it CLEARS the selection --
 // "Concluir" is the design's own word for finished, and a mode left with
 // rows still marked would delete them the next time it was entered.
+//
+// it is also the one gate on the mode, and there is a second condition in
+// it: never over search hits. those rows are files in other folders, and
+// both bulk actions are folder-scoped -- act_zip posts BASENAMES at the
+// folder we are standing in, so a hit two levels down would be a name that
+// folder does not have. one test here rather than one per entry point.
 function set_sel(on) {
-	ST.selmode = !!on;
+	ST.selmode = !!on && ST.srch.q === null;
 	if (!ST.selmode) {
 		ST.sel = {};
 		ST.selanchor = null;
@@ -935,6 +1254,23 @@ function set_sel(on) {
 // the mode's whole presentation, in one place: the attribute the css bands
 // read, the nav bar's label, the action bar's slot set, and a redraw. every
 // entry point below ends here rather than each repainting its own corner.
+// the three doors into the mode that are NOT the nav bar's button --
+// ctrl/shift-click, the long-press and shift+arrow -- all end here, and the
+// gate set_sel() carries lives here too for the same reason: never over
+// search hits. all three mark the row first and open the mode after, so a
+// refusal has to take the mark back out with it, and it needs no redraw --
+// nothing has been drawn between the mark and this line.
+function sel_enter() {
+	if (ST.srch.q !== null) {
+		ST.sel = {};
+		ST.selanchor = null;
+		return;
+	}
+
+	ST.selmode = true;
+	sel_fx();
+}
+
 function sel_fx() {
 	var de = document.documentElement,
 		b = ebi("nu_selb");
@@ -947,6 +1283,9 @@ function sel_fx() {
 	if (b) {
 		b.textContent = t(ST.selmode ? "nu_seld" : "nu_sel");
 		b.setAttribute("aria-pressed", ST.selmode ? "true" : "false");
+		// and the door says so while search hits are up, rather than
+		// refusing silently when it is tapped
+		b.disabled = ST.srch.q !== null;
 	}
 
 	// the bar swaps slot sets with the mode, and its live gates read the
@@ -1087,8 +1426,7 @@ function sel_click(e) {
 	try { window.getSelection().removeAllRanges(); }
 	catch (ex) { }
 
-	ST.selmode = true;
-	sel_fx();
+	sel_enter();
 }
 
 // -- the long-press ----------------------------------------------------
@@ -1162,8 +1500,7 @@ function lp_fire() {
 	// would navigate into the row the press just marked
 	LP.eat = true;
 
-	ST.selmode = true;
-	sel_fx();
+	sel_enter();
 }
 
 function lp_bind(on) {
@@ -1701,7 +2038,12 @@ function render_list(shown) {
 	// its subline is prose, not a field, so it is wrapped narrow-only --
 	// otherwise the wide band would drop it into whichever column the
 	// grid felt like giving it.
-	if (vpnodes.length > 1) {
+	//
+	// not while search hits are the list, though: these rows are not a
+	// folder's contents, so a row saying "up one level" would be a fourth
+	// entry under a strip that just said "3 results". the header's #nu_up
+	// is still there, and `Clear` is the way back to the folder.
+	if (vpnodes.length > 1 && ST.srch.q === null) {
 		var up = vpnodes[vpnodes.length - 2];
 		// an EMPTY checkbox cell, not a missing one: the wide band places
 		// every cell by name so a missing one would cost it nothing, but
@@ -1938,8 +2280,10 @@ function render_grid(shown) {
 
 	// the same door out the list draws, for the same reason: the header's
 	// #nu_up is the other one, and a view is a preference -- flipping it
-	// must not quietly remove an affordance.
-	if (vpnodes.length > 1) {
+	// must not quietly remove an affordance. and it is gone over search
+	// hits for the same reason it is gone there: a view must not change
+	// what the list IS either.
+	if (vpnodes.length > 1 && ST.srch.q === null) {
 		var up = vpnodes[vpnodes.length - 2];
 		h.push('<a class="nu_tile nu_dir nu_back" href="' +
 			esc(keep(SR + "/" + up[0])) + '">' +
@@ -3210,6 +3554,15 @@ function vw_close() {
 // -- load --------------------------------------------------------------
 
 function take(ls) {
+	// a fresh listing IS the folder, so whatever the search was showing is
+	// over -- and the stash goes with it, or the next `Clear` would restore
+	// a listing older than the one just fetched. every caller of take() is
+	// a reason for that: the first paint, a pull-to-refresh, and the
+	// refetch after a delete.
+	ST.srch.q = null;
+	ST.srch.folder = null;
+	ST.srch.trunc = false;
+
 	ST.items = (ls.dirs || []).concat(ls.files || []);
 
 	// a name the new listing no longer carries drops out of the selection:
@@ -3224,6 +3577,7 @@ function take(ls) {
 	ST.sel = keep;
 
 	draw();
+	render_qmsg();
 }
 
 // the ONLY builder of an `?ls` url, which is what makes the dots rule
@@ -3811,7 +4165,9 @@ function set_dots(v) {
 	// would not survive a reload; leaving unpins instead. see docs/nu-ui.md
 	// the strings that live in nu.html: jinja cannot see Ls, so the markup
 	// carries the english and boot overwrites it with t().
-	ebi("nu_q").placeholder = t("nu_q");
+	// the box promises what the volume can keep: recursion only where
+	// there is an index to recurse through (can_srch).
+	ebi("nu_q").placeholder = t(can_srch() ? "nu_qr" : "nu_q");
 	ebi("nu_sh2").textContent = t("gt_sort");
 	ebi("nu_shint").textContent = t("nu_s_rev");
 	ebi("nu_tshh").textContent = t("tree_h");
@@ -3836,11 +4192,56 @@ function set_dots(v) {
 		draw();
 	};
 
+	// the search strip, built here rather than shipped in nu.html for the
+	// reason #nu_selb is: every word in it comes out of t(), and jinja
+	// cannot see Ls. inserted BEFORE #nu_chips, which puts it between the
+	// box it belongs to and the chips -- and it is a real child of #nu_top
+	// because the wide band makes that element a grid and places its
+	// children by name, so a strip parented anywhere else would be placed
+	// by nobody.
+	var qm = document.createElement("div");
+	qm.id = "nu_qmsg";
+	qm.setAttribute("role", "status");
+	qm.hidden = true;
+	// the `Clear` button is rendered and re-rendered by render_qmsg, so the
+	// handler is delegated to the strip and not bound to the button
+	qm.onclick = function (e) {
+		var b = e.target.closest ? e.target.closest("#nu_qx") : null;
+		if (b)
+			srch_off(true);
+	};
+	ebi("nu_top").insertBefore(qm, ebi("nu_chips"));
+
 	var qt = 0;
 	ebi("nu_q").oninput = function () {
 		var v = this.value;
 		clearTimeout(qt);
+
+		// an emptied box is an undo, and it is immediate: the little x
+		// inside a type=search field is the only affordance some browsers
+		// give, and waiting out the debounce to put the folder back reads
+		// as a stuck screen rather than as a filter.
+		if (!v && ST.srch.q !== null) {
+			ST.q = "";
+			return srch_off(false);
+		}
+
 		qt = setTimeout(function () { ST.q = v; draw(); }, 90);
+	};
+
+	// Enter is the submit, and the ONLY thing that ever asks the server:
+	// the in-folder tier has already been applied by the debounce above,
+	// and a request per keystroke is what the server's rate limit exists
+	// to punish. `repeat` is excluded because a held Enter is one press.
+	ebi("nu_q").onkeydown = function (e) {
+		if (e.key != "Enter" || e.repeat)
+			return;
+
+		if (e.preventDefault)
+			e.preventDefault();
+
+		if (can_srch())
+			srch_go(this.value);
 	};
 
 	ebi("nu_head").onclick = function (e) {
@@ -4083,8 +4484,7 @@ function set_dots(v) {
 
 				sel_set(f, true);
 				ST.selanchor = nm(f);
-				ST.selmode = true;
-				sel_fx();
+				sel_enter();
 				rows = ebi("nu_list").querySelectorAll(".nu_row, .nu_tile");
 			}
 		}
