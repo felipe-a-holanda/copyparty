@@ -3,10 +3,10 @@ number: 0002
 type: spec
 slug: nu-desktop-is-a-first-class-width
 title: "Desktop is a first-class width: the responsive contract for nu"
-status: planejado
+status: pousado
 created: 2026-08-23
 headline: On a large screen the new UI stops being a phone layout stretched to 760px — a docked folder tree, sortable columns and click-to-select make it something a mouse can actually drive.
-tags: [spec, status/planejado]
+tags: [spec, status/pousado]
 par: "[[plans/0002-nu-desktop-is-a-first-class-width|plan]]"
 ---
 
