@@ -417,12 +417,53 @@ function keep(href) {
 	return href + (href.indexOf("?") < 0 ? "?nu" : "&nu");
 }
 
-function unpin() {
-	// ?setck is an existing server endpoint; see setck() in httpcli.py
+// ?setck is an existing server endpoint (setck(), httpcli.py:5913-5925) and
+// nu invents no cookie of its own: it rejects any `k=v` longer than nine
+// characters, so the channel is reserved for the short names that already
+// exist -- `ui` here, `dots` below. an EMPTY value expires the cookie
+// (t = 0 at :5918), which is how both callers clear one.
+function setck(kv, cb) {
 	var xhr = new XMLHttpRequest();
-	xhr.open("GET", SR + "/?setck=ui=", true);
-	xhr.onloadend = function () { location.href = location.pathname; };
+	xhr.open("GET", SR + "/?setck=" + kv, true);
+	xhr.onloadend = function () { if (cb) cb(); };
 	xhr.send();
+}
+
+function unpin() {
+	setck("ui=", function () { location.href = location.pathname; });
+}
+
+// -- dotfiles ----------------------------------------------------------
+//
+// the ONE preference nu cannot enforce on its own, and the reason spec 0001
+// D3 calls it the trap. dotfiles are filtered SERVER-side
+// (httpcli.py:7433-7437), so a client-side toggle could only ever hide what
+// the server already sent; it can never reveal what the server withheld.
+//
+//   if not self.can_dot or (
+//       "dots" not in self.uparam and (is_ls or "dots" not in self.cookies)
+//   ):
+//
+// read that second line carefully: `is_ls` SHORT-CIRCUITS the cookie. the
+// first paint is not an `?ls` request -- ls0 is embedded in the html -- so a
+// cookie-only implementation appears to work on load and then silently drops
+// every dotfile on the very next tap, when fetch_ls() refetches. correct
+// once, wrong forever after, with no error anywhere.
+//
+// so the rule is: `dots` rides the QUERY STRING on every ?ls and every
+// ?tree= request, and the cookie exists only so the first paint of the next
+// page load agrees with the toggle.
+
+function can_dot() {
+	// `dot` is in the perms list the server hands the template when
+	// self.can_dot (httpcli.py:7278-7279) -- the same answer the filter
+	// above tests, so the client never has to guess at it
+	return !!(perms && perms.indexOf("dot") + 1);
+}
+
+// read at CALL time, never latched: this is what every listing url asks.
+function want_dots() {
+	return can_dot() && pref("dotfiles");
 }
 
 // -- capability and width ----------------------------------------------
@@ -1226,8 +1267,16 @@ function take(ls) {
 	draw();
 }
 
+// the ONLY builder of an `?ls` url, which is what makes the dots rule
+// enforceable: want_dots() is evaluated here, on every call, so a listing
+// fetched after the toggle carries the new answer and one fetched before it
+// carried the old one. a `dots` latched into a variable at boot -- or left
+// to the cookie -- is the D3 failure, and it fails on the second navigation,
+// not the first.
 function fetch_ls(vpath, cb) {
-	var url = vpath + (vpath.indexOf("?") < 0 ? "?" : "&") + "ls";
+	var url = vpath + (vpath.indexOf("?") < 0 ? "?" : "&") + "ls" +
+		(want_dots() ? "&dots" : "");
+
 	var xhr = new XMLHttpRequest();
 	xhr.open("GET", url, true);
 	xhr.responseType = "json";
@@ -1258,14 +1307,16 @@ function fetch_ls(vpath, cb) {
 
 // the tree honours `dots` only as the query param ANDed with the udot
 // permission -- `self.uname in vn.axs.udot and "dots" in self.uparam`
-// (httpcli.py:6114). the *listing* additionally honours a cookie
-// (:7434-7436), which is the path nu's first paint takes, so these are not
-// one preference with two readers: the client's own preference has to ride
-// along on every single ?tree= request. `dots=y` is the cookie the classic
-// UI writes (setck, browser.js:6983) and nu has no toggle of its own yet;
-// for a user without udot the preference is a documented no-op here.
+// (httpcli.py:6114). there is no cookie fallback here at all, so the
+// client's own preference is the ONLY thing that can answer, and it has to
+// ride along on every single ?tree= request.
+//
+// this used to read the cookie, back when nu had no toggle of its own. it
+// must not: the cookie is now a write-only shadow kept for the first paint
+// (see set_dots), and reading it back would put the tree one navigation
+// behind the listing beside it.
 function tree_dots() {
-	return /(^|;\s*)dots=y(;|$)/.test(document.cookie);
+	return want_dots();
 }
 
 // `GET <dst>?tree=<top>[&dots][&k=<key>]` -- the same request shape the
@@ -1601,6 +1652,47 @@ function tree_boot() {
 		var el = ebi("nu_tree");
 		render_tree(el);
 		tree_dock(el);
+	});
+}
+
+// THE TREE TRAP. `kids` deliberately survives a collapse (tree_toggle), and
+// ST.tree.root is fetched exactly once behind tree_lit -- both are caches of
+// an answer the server gave for one value of `dots`. flip the preference and
+// every branch already loaded keeps painting the old answer, while a branch
+// opened afterwards paints the new one, in the same tree, at the same time.
+//
+// so the flip throws all three away: the root, the open/closed map, and the
+// once-only flag. nothing here re-renders on its own -- it re-runs the MOUNT
+// for whichever container is currently showing the widget, which today is the
+// dock and from card 4 is also the bottom sheet.
+function tree_reset() {
+	ST.tree.root = null;
+	ST.tree.expanded = {};
+	tree_lit = false;
+
+	var el = ebi("nu_tree");
+	if (el && !el.hidden)
+		tree_boot();
+}
+
+// the whole flip, in one place: the preference, the cookie that only the
+// next first paint reads, the tree's caches, and a refetch of the listing we
+// are standing in -- because the dotfiles the server withheld are not in
+// ST.items to be revealed, they have to be asked for again.
+function set_dots(v) {
+	setpref("dotfiles", v);
+
+	// the server tests the cookie's PRESENCE and never its value
+	// (httpcli.py:7435), so `dots=` -- the empty value that expires it -- is
+	// how it is turned off. `dots=y` matches what the classic UI writes
+	// (browser.js:6983), so the two UIs agree on the first paint too.
+	setck("dots=" + (v ? "y" : ""));
+
+	tree_reset();
+
+	fetch_ls(location.pathname, function (err, ls) {
+		if (!err)
+			take(ls);
 	});
 }
 
