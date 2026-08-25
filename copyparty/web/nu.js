@@ -758,7 +758,14 @@ var ST = {
 	// rule `vlist` above lives by. `folder` is the listing the hits
 	// displaced, kept so clearing the box puts it back without a second
 	// `?ls`; `busy`, `err` and `trunc` are the message strip's whole state.
-	srch: { q: null, folder: null, busy: false, err: "", trunc: false }
+	srch: { q: null, folder: null, busy: false, err: "", trunc: false },
+	// the upload queue's progress, in up2k's own words: the string its
+	// Donut hands to wintitle() once a second while a queue is busy, and
+	// NULL whenever nothing is uploading -- Donut.on(false) calls
+	// wintitle() with no argument at all when the queue drains
+	// (up2k.js:691), and that is the only "is anything uploading" flag
+	// there is. written by the shim's wintitle, below.
+	upl: null
 };
 
 // -- mode plumbing -----------------------------------------------------
@@ -4538,6 +4545,151 @@ function upl_sw_htm() {
 		'</div>'
 	);
 }
+
+// -- the browser.js shim -----------------------------------------------
+//
+// up2k.js is not a library: it is written against browser.js, and reaches
+// through it for exactly ten symbols (spec 0003 D3 part 2, a table of ten
+// reaches). nu does not load browser.js -- 9.6k lines of the classic UI --
+// so this row of stand-ins is the whole boundary between the two files.
+//
+// it is a BOUNDARY and not a seam, and two of the ten are why: `goto` is
+// 36 lines of tab router and `apply_perms` is 117 lines that write to
+// <html> and <body>. Both are REPLACED here, not proxied.
+//
+// installed on `window` at load, BEFORE anything is injected. util.js:26's
+// bare `var treectl, thegrid, up2k, ...` does not reset a binding that
+// already exists, so installing first is safe -- and installing after the
+// injection would be a race with a file that calls two of these at its own
+// top level.
+
+// treectl.onscroll is called at up2k.js:57 -- top level, before any
+// function of the page has run -- and is NOT inside a try. it must exist,
+// and nu has no navpane to scroll, so it does nothing.
+//
+// treectl.goto IS inside the bare try at up2k.js:1872-1876, so it would be
+// safe to omit -- but it is the call that re-lists the folder when a queue
+// drains, which is the behavior nu wants: a finished upload should appear
+// in the list. so it is nu's own re-fetch of the listing we are standing
+// in, the same two lines set_dots ends with.
+window.treectl = {
+	onscroll: function () { },
+	goto: function () {
+		fetch_ls(location.pathname, function (err, ls) {
+			if (!err)
+				take(ls);
+		});
+	}
+};
+
+// up2k.js:3496, top level, guarded only by `if (ls0)` -- and nu's own
+// take() already redrew the list one function up, so there is nothing for
+// a second renderer to do.
+window.fileman = { render: function () { } };
+
+// both are read only inside that same try at up2k.js:1873, and both are
+// kept for one reason: the guard there is
+// `!msel.getsel().length && (!mp.au || mp.au.paused)`, so an empty
+// selection and a silent player are what let treectl.goto() be reached.
+// nu has no music player at all, hence null.
+window.msel = { getsel: function () { return []; } };
+window.mp = { au: null };
+
+// the progress feed D2 asks for, and the reason it is a shim and not a
+// console.log: Donut.do formats "{0}%, {1}, #{2}, " and calls this once a
+// second while a queue is busy (up2k.js:712-713), and Donut.on(false)
+// calls it with NO ARGUMENT when the queue drains (:691). so `undefined`
+// is not a missing string, it is the drain, and ST.upl is null exactly
+// when nothing is uploading. card 5's status line renders from it.
+//
+// browser.js:9636-9646 is the shape for the title itself. `noname` is the
+// classic UI's "leave the server name off this one" flag; nu puts no
+// server name in its title, so the argument is accepted and ignored.
+window.wintitle = function (txt, noname) {
+	ST.upl = txt === undefined ? null : txt;
+	document.title = ((txt || "") + here_path().split("/").pop()) || "copyparty";
+};
+
+// an INERT ROUTE GUARD, not a proxy. browser.js:1169-1203 resolves
+// QS('#ops>a[data-dest=' + dest + ']') and dereferences it (:1178-1179),
+// toggles #op_<dest> (:1192), dispatches window['goto_' + dest]
+// (:1194-1196), writes clmod(document.documentElement, 'op_open', dest)
+// (:1200 -- a class nu.css has no rule for) and calls treectl.onscroll().
+//
+// nu has no opview tabs, so all this version does is dispatch the
+// goto_<dest> hook when one exists. that dispatch is not optional: it is
+// how goto('up2k') still reaches goto_up2k() -> up2k.init_deps()
+// (up2k.js:24), which imports the main-thread hasher fallback.
+//
+// everything else is deliberately absent -- no navigation, no class on
+// <html>, and NO THROW when dest is undefined. three of up2k.js's five
+// call sites fire unconditionally at init: :863 for a read-less
+// write-only user, :3500 -- which passes no argument at all -- and :3504,
+// replaying sread('opmode') from a previous CLASSIC-UI session, a stale
+// localStorage key that must not steer this page anywhere.
+window.goto = function (dest) {
+	var fn = window["goto_" + dest];
+	if (fn)
+		fn();
+};
+
+// browser.js:1204-1205's shape. up2k.js:879-880 binds these two to the
+// u2yea / u2nah anchors of the https-warning modal, which arrive inside
+// card 1's L strings.
+window.go2up2k = function () { window.goto("up2k"); };
+window.go2bup = function () { window.goto("bup"); };
+
+// the AudioContext keep-alive hack, copied in shape from browser.js:1275
+// and :2760-2782: an alive actx keeps the tab's timers off the background
+// throttle, which is worth ~1s per subtle.digest resolve while hashing
+// unfocused. up2k.js calls start_actx() from eleven places.
+//
+// browser.js carves iOS out ("actx breaks background album playback on
+// ios") through IPHONE, which is util.js:39 and does not exist yet when
+// this runs -- so the test is spelled out here rather than dropped.
+window.ACtx = !/iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+	(window.AudioContext || window.webkitAudioContext);
+
+// NULL, or a real AudioContext -- never a stub. up2k.js:735 guards on
+// `uc.upsfx && actx && actx.state != 'suspended'` and then sfx_nice()
+// calls actx.createOscillator() (:753), so a falsy actx is safe and a fake
+// object is a TypeError on the first completed upload with the sound on.
+window.actx = null;
+
+window.start_actx = function () {
+	if (!window.actx) {
+		if (!window.ACtx)
+			return;
+
+		window.actx = new window.ACtx();
+	}
+	try {
+		if (window.actx.state == "suspended")
+			window.actx.resume();
+	}
+	catch (ex) { }
+};
+
+// REPLACED, not proxied. browser.js:8042-8158 is 117 lines of classic-UI
+// page chrome: it dereferences #ops a[data-dest="up2k"] (:8058), #acc_info
+// (:8091), #u2rand's parent (:8143) and #new_mdi (:8152) with no guard,
+// writes the read/write/nread/nwrite classes onto <html>, sets a `perms`
+// attribute on <body> and calls goto() itself. nu owns all of that
+// already, and none of it the way browser.js spells it.
+//
+// it must exist all the same: up2k.js:3494 calls it unguarded, at top
+// level. what nu's does is the two lines the uploader actually depends on
+// -- browser.js:8145 and :8146-8147 -- and without the second, fsearch
+// never initializes.
+//
+// both writes are window-qualified because this file is strict: `u2ts = x`
+// would throw if CGV1's spray had not already created the global, and
+// `up2k` is up2k.js's own (up2k.js:30), null until its hasher resolves.
+window.apply_perms = function (res) {
+	window.u2ts = res.u2ts;
+	if (window.up2k)
+		window.up2k.set_fsearch();
+};
 
 // -- boot --------------------------------------------------------------
 
