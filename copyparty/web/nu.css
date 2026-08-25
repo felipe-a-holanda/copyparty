@@ -1557,6 +1557,16 @@ button.nu_crow:focus-visible {
 	opacity: 1;
 }
 
+/* display:flex above outranks the UA's [hidden] { display: none }, so the
+   hidden state has to be re-stated -- and here it costs more than pixels:
+   the viewer is position:fixed inset:0 at z-index 12, so a closed viewer
+   that still lays out is a transparent full-window sheet over everything,
+   and every click on nu lands on it instead of on the row or button under
+   the cursor. same guard as #nu_qmsg and #nu_swipe carry. */
+#nu_vwr[hidden] {
+	display: none;
+}
+
 #nu_vwt {
 	flex: 0 0 auto;
 	display: flex;
