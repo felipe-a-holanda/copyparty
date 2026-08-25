@@ -204,6 +204,37 @@ a {
 	text-decoration: none;
 }
 
+/* ---- what ui.css reaches for ----
+
+   the upload sheet's first open injects ui.css, and injects it BEFORE this
+   file (nu.js:inject_ui_css), so every same-specificity collision between
+   the two is decided here, on document order. two of ui.css's rules have no
+   tie to lose, because nu.css never stated them at all -- so it states them
+   now, at matching specificity, and wins:
+
+     ui.css:385-387  input, button { font-family: var(--font-main) }
+     ui.css:389-394  input[type="text"]:focus, input:not([type]):focus,
+                     textarea:focus { box-shadow: 0 .1em .3em #fc0 ... }
+
+   both are stated out here in nu's own chrome rather than inside #nu_upl:
+   what the upload panel itself looks like is not this block's call. */
+input,
+button,
+textarea,
+select {
+	font-family: var(--font);
+}
+
+/* nu draws focus as an outline on :focus-visible -- #nu_q, #nu_qx,
+   .nu_chip and the rest, below -- and never as a shadow. so nu's own
+   box-shadow on a focused field is none, and saying it out loud is what
+   keeps ui.css's yellow glow off the search box. */
+input[type="text"]:focus,
+input:not([type]):focus,
+textarea:focus {
+	box-shadow: none;
+}
+
 /* ---- header ---- */
 
 #nu_top {

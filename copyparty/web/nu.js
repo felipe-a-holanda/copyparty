@@ -4369,6 +4369,48 @@ function mount_upl() {
 		ebi("nu_uplb").textContent = "up2k contract broken, missing: " + miss;
 		return;
 	}
+
+	inject_ui_css();
+}
+
+// up2k's own stylesheet, and the one line of this card a reader is most
+// likely to "tidy up": it is
+// document.head.insertBefore(link, document.head.firstChild), and NOT
+// appendChild.
+//
+// cascade order for author sheets follows the document order of their
+// elements, not the order they were inserted. ui.css:1-9 is a :root block
+// declaring --fg: #ccc, and nu.css:23 declares --fg at the very same
+// specificity -- so document order is the whole tiebreak. APPENDED, this
+// link would sit after nu.css (nu.html:9) and after the admin's {{ css }}
+// override (nu.html:11-13), win every one of those ties, and repaint every
+// nu surface reading var(--fg) to #ccc from the first open of this sheet
+// until the page is reloaded. INSERTED FIRST, nu.css and the override win
+// every tie instead, while ui.css's rules for #tt, #toast, #toastb and
+// #modal -- which nu.css does not define at all, so there is no tie to
+// win -- still apply, and those four are what up2k's tooltips, its toasts
+// and its own "loading sha512.hw.js" modal are drawn with.
+//
+// two of ui.css's rules do reach nu's chrome with no tie to lose. nu.css
+// answers those at the same specificity rather than here; see its "what
+// ui.css reaches for" block.
+//
+// util.js has no import_css -- only import_js (util.js:442-456) -- so this
+// is nu's own three lines and not a reuse.
+function inject_ui_css() {
+	var link = document.createElement("link");
+	link.rel = "stylesheet";
+	link.media = "screen";
+
+	// insurance, and nothing more: the default --csp-ui is
+	// `script-src 'unsafe-eval' 'nonce-...'; worker-src 'self'`
+	// (__main__.py:1706) -- no style-src and no default-src, so stylesheets
+	// are unrestricted today. this is for the admin who has tightened it.
+	if (window.JS_NONCE)
+		link.nonce = JS_NONCE;
+
+	link.href = SR + "/.cpr/w/ui.css?_=" + TS;
+	document.head.insertBefore(link, document.head.firstChild);
 }
 
 // the four things up2k.js reaches for that are NOT inside the panel, and
