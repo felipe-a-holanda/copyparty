@@ -257,13 +257,26 @@
 		var Ls = {},
 			SR = "{{ r }}",
 			TS = "{{ ts }}",
+			// util.js:446-447 stamps this into every import_js call; without
+			// it the dep import of up2k.js is blocked by the default
+			// --csp-ui (script-src 'unsafe-eval' 'nonce-{{ js_nonce }}').
+			JS_NONCE = "{{ js_nonce }}",
 			// the admin's ui_* switches and the server's capabilities.
 			// raw, never |tojson: vn.js_htm is already a json *string*
 			// (json_hesc(json.dumps(...)) in authsrv.py), which is why
 			// browser.html, md.html and mde.html all interpolate cgv1
 			// bare too. encoding it twice hands nu a String, and every
 			// capability gate then reads undefined.
-			srvcfg = {{ cgv1 }},
+			//
+			// CGV1 is util.js:16-17's spray target (nosubtle, frand, u2ts,
+			// u2sz, u2ow, u2j, lifetime, turbolvl, u2sort, have_up2k_idx
+			// as bare globals) -- one parse, two names, one object. CGV
+			// is deliberately NOT declared: its three keys for this
+			// template (ls0, acct, perms) are already bare globals below,
+			// and util.js:19-20's spray would replace ls0 with a second
+			// parse of the whole listing.
+			CGV1 = {{ cgv1 }},
+			srvcfg = CGV1,
 			lang = "{{ lang }}",
 			dtheme = "{{ dtheme }}",
 			have_tags_idx = {{ have_tags_idx }},
