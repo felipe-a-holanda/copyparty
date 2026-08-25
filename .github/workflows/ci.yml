@@ -1,0 +1,83 @@
+# CI deste fork. O upstream (9001/copyparty) não tem GitHub Actions nenhum: este
+# workflow nasceu aqui, junto com a adocao do pipeline spec->plan->exec->promote.
+#
+# O que ele protege: `main` é o ponteiro que o contrib/autodeploy vigia — um
+# systemd timer que faz `git ls-remote` a cada 2 min, builda o sfx e reaponta o
+# symlink de /usr/local/bin/copyparty-sfx.py. Ou seja, TODO commit que chega em
+# main vai pra produção sem passar por humano. O gate útil, então, não é "os
+# testes passam": é "o sfx que o deployer vai buildar realmente builda", porque
+# um build quebrado deixa produção presa no release anterior sem aviso.
+#
+# Por isso são dois jobs, e o segundo roda exatamente o comando do deployer.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]      # o gate do PR de promoção (dev → main)
+  push:
+    branches: [main, dev] # sinal continuo na branch de trabalho, e a prova
+                          # pós-merge no SHA que o deployer vai pegar
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # 3.12 é o que a máquina de produção roda (/usr/bin/python3).
+          # O projeto declara suporte de 3.3 até 3.14; ampliar isto pra uma
+          # matriz é barato, mas as outras versões nunca foram medidas neste
+          # fork — estender sem medir faz o CI nascer vermelho.
+          python-version: '3.12'
+
+      - name: install deps
+        # as únicas deps de terceiros que a suíte e o smoketest importam
+        run: python -m pip install --upgrade pip jinja2 requests
+
+      - name: unit tests
+        # a raiz do repo já é um cwd válido pro discover; o scripts/run-tests.sh
+        # faz uma dança extra (copia pra unt/, resolve symlinks, strip_hints,
+        # roda python2 em paralelo) que só importa pra testar o suporte py2.
+        run: python -m unittest discover -s tests
+
+      - name: smoketest
+        # sobe copyparty de verdade e exercita upload/scan/tags via HTTP
+        run: python scripts/test/smoketest.py
+
+  build-sfx:
+    name: build sfx
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: build
+        # MESMOS argumentos do contrib/autodeploy (BUILD_ARGS=fast dl-wd).
+        # `dl-wd` baixa os webdeps do release oficial do upstream em vez de
+        # buildar do zero — de propósito NÃO há cache aqui: o deployer baixa
+        # fresco a cada build, e o CI só vale se reproduzir o que produção faz.
+        run: ./scripts/make-sfx.sh fast dl-wd
+
+      - name: upload sfx
+        uses: actions/upload-artifact@v4
+        with:
+          name: copyparty-sfx-${{ github.sha }}
+          path: dist/copyparty-sfx.py
+          retention-days: 14
