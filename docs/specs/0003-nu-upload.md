@@ -3,10 +3,10 @@ number: 0003
 type: spec
 slug: nu-upload
 title: "Upload: nu hosts the real up2k instead of reimplementing it"
-status: planejado
+status: pousado
 created: 2026-08-24
 headline: A phone can finally put files into copyparty from the new UI, and a desktop can drag a whole folder onto it, instead of being bounced to the old interface by a button that admits it does not work.
-tags: [spec, status/planejado]
+tags: [spec, status/pousado]
 par: "[[plans/0003-nu-upload|plan]]"
 ---
 

@@ -13,7 +13,7 @@ nasce na spec; o plano em `docs/plans/<NNNN>-<slug>.md` espelha o mesmo número.
 
 | Spec | Title | Status | Evidence in the code |
 |---|---|---|---|
-| [0003](0003-nu-upload.md) | Upload: nu hosts the real up2k instead of reimplementing it. A phone can finally put files into copyparty from the new UI, and a desktop can drag a whole folder onto it, instead of being bounced to the old interface by a button that admits it does not work. | planejado | spec + plano ([0003](../plans/0003-nu-upload.md): 5 cards, 14 commits, uma lane) — nada no código ainda: `Enviar arquivos` segue morto roteando pra `?nu0` (`web/nu.js:2486`) e `nu.html` não carrega `util.js` nem `up2k.js`. Próximo: `/exec docs/plans/0003-nu-upload.md`. |
+| [0003](0003-nu-upload.md) | Upload: nu hosts the real up2k instead of reimplementing it. A phone can finally put files into copyparty from the new UI, and a desktop can drag a whole folder onto it, instead of being bounced to the old interface by a button that admits it does not work. | pousado | `c2b64200..ea1e4cc2` — bootstrap `CGV1`/`JS_NONCE`, as 140 chaves de `Ls.eng`, o painel up2k como quinto tenant de `sheet()`, o shim de `browser.js` com auto-checagem de contrato, a injeção ordenada `ui.css`→`util.js`→`up2k.js` e o progresso na status line; suíte verde (31), zero `.py` no diff e nenhum arquivo novo em `web/` — walk viva feita: 24 arquivos subiram de verdade, dedupe e `--lang por` provados; falta só o gesto físico de arrastar pasta. |
 
 ## Recently landed
 

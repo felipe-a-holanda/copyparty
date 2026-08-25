@@ -3,9 +3,9 @@ number: 0003
 type: plan
 slug: nu-upload
 title: "Upload: nu hosts the real up2k instead of reimplementing it"
-status: planejado
+status: pousado
 created: 2026-08-25
-tags: [plan, status/planejado]
+tags: [plan, status/pousado]
 par: "[[specs/0003-nu-upload|spec]]"
 ---
 
