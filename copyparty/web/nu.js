@@ -16,7 +16,18 @@
 
 var ebi = document.getElementById.bind(document);
 
-function esc(t) {
+// esc, setck and humansize are named nu_esc / nu_setck / nu_hsz because
+// util.js declares its own esc (util.js:112), setck (util.js:1381) and
+// humansize (util.js:1006) -- and once util.js is on the page (Card 4),
+// those are collisions, not equivalences: util.js's esc throws on
+// null/undefined/a number where this one coerces; util.js's setck uses
+// xhr.onload, which never fires on a network error, where this one's
+// onloadend always runs its callback; util.js's humansize takes a second
+// (tersity) argument this one does not have, and up2k.js calls it with
+// one. ebi is left un-renamed on purpose: util.js:83's binding is
+// byte-identical, and renaming its ~80 call sites would bury these three
+// renames that actually matter. do not rename them back.
+function nu_esc(t) {
 	return String(t == null ? "" : t).replace(/[<>&"]/g, function (c) {
 		return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c];
 	});
@@ -478,7 +489,7 @@ var UNITS = {
 // (render_stat). the one thing this must never reformat is the folder
 // cell's NARROW form -- that is an item count, not a size, and it is built
 // from nfiles() and never passes through here.
-function humansize(n) {
+function nu_hsz(n) {
 	if (!n)
 		return n === 0 ? "0 B" : "";
 
@@ -615,7 +626,7 @@ function keep(href) {
 // characters, so the channel is reserved for the short names that already
 // exist -- `ui` here, `dots` below. an EMPTY value expires the cookie
 // (t = 0 at :5918), which is how both callers clear one.
-function setck(kv, cb) {
+function nu_setck(kv, cb) {
 	var xhr = new XMLHttpRequest();
 	xhr.open("GET", SR + "/?setck=" + kv, true);
 	xhr.onloadend = function () { if (cb) cb(); };
@@ -623,7 +634,7 @@ function setck(kv, cb) {
 }
 
 function unpin() {
-	setck("ui=", function () { location.href = location.pathname; });
+	nu_setck("ui=", function () { location.href = location.pathname; });
 }
 
 // -- dotfiles ----------------------------------------------------------
@@ -968,9 +979,9 @@ function render_qmsg() {
 	}
 
 	el.hidden = !txt;
-	el.innerHTML = !txt ? "" : '<span class="nu_qt">' + esc(txt) + '</span>' +
+	el.innerHTML = !txt ? "" : '<span class="nu_qt">' + nu_esc(txt) + '</span>' +
 		(off ? '<button type="button" id="nu_qx">' +
-			esc(t("nu_q_off")) + '</button>' : "");
+			nu_esc(t("nu_q_off")) + '</button>' : "");
 }
 
 function srch_go(q) {
@@ -1691,7 +1702,7 @@ function sw_place(row) {
 
 	for (var a = 0; a < acts.length; a++)
 		h.push('<button type="button" class="nu_swb nu_sw_' + acts[a][0] +
-			'" data-s="' + acts[a][0] + '">' + esc(t(acts[a][1])) + '</button>');
+			'" data-s="' + acts[a][0] + '">' + nu_esc(t(acts[a][1])) + '</button>');
 
 	el.innerHTML = h.join("");
 	el.style.top = row.offsetTop + "px";
@@ -1891,7 +1902,7 @@ function render_chips() {
 	for (var a = 0; a < FILTERS.length; a++)
 		h.push('<button type="button" class="nu_chip' +
 			(FILTERS[a][0] == ST.filter ? " on" : "") +
-			'" data-f="' + FILTERS[a][0] + '">' + esc(t(FILTERS[a][1])) + '</button>');
+			'" data-f="' + FILTERS[a][0] + '">' + nu_esc(t(FILTERS[a][1])) + '</button>');
 
 	ebi("nu_chips").innerHTML = h.join("");
 }
@@ -1927,7 +1938,7 @@ function render_stat(shown) {
 			sz += shown[a].sz || 0;
 
 	var word = t(n == 1 ? "nu_item" : "nu_items");
-	ebi("nu_count").textContent = n + " " + word + (sz ? " · " + humansize(sz) : "");
+	ebi("nu_count").textContent = n + " " + word + (sz ? " · " + nu_hsz(sz) : "");
 
 	srt.textContent = sort_label(ST.sortKey) + " " +
 		(ST.sortDir > 0 ? "↑" : "↓");
@@ -2015,7 +2026,7 @@ function render_head() {
 //   a hidden cell *between* two visible ones orphans a separator.
 
 function cell(cls, txt) {
-	return txt ? '<span class="' + cls + '">' + esc(txt) + '</span>' : "";
+	return txt ? '<span class="' + cls + '">' + nu_esc(txt) + '</span>' : "";
 }
 
 // a cell whose text differs per band ships both forms and lets css pick:
@@ -2027,8 +2038,8 @@ function cell2(cls, n, w) {
 		return "";
 
 	return '<span class="' + cls + '">' +
-		'<span class="nu_n">' + esc(n) + '</span>' +
-		'<span class="nu_w">' + esc(w) + '</span></span>';
+		'<span class="nu_n">' + nu_esc(n) + '</span>' +
+		'<span class="nu_w">' + nu_esc(w) + '</span></span>';
 }
 
 function render_list(shown) {
@@ -2049,11 +2060,11 @@ function render_list(shown) {
 		// every cell by name so a missing one would cost it nothing, but
 		// the narrow band is a flex row and the back row would sit 30px
 		// left of every other row the moment the mode opened.
-		h.push('<a class="nu_row nu_dir nu_back" href="' + esc(keep(SR + "/" + up[0])) + '">' +
+		h.push('<a class="nu_row nu_dir nu_back" href="' + nu_esc(keep(SR + "/" + up[0])) + '">' +
 			'<span class="nu_ck"></span>' +
 			'<span class="nu_type">DIR</span>' +
-			'<span class="nu_meat"><span class="nu_name">' + esc(t("nu_back")) + '</span>' +
-			'<span class="nu_sub"><span class="nu_n">' + esc(t("nu_back2")) +
+			'<span class="nu_meat"><span class="nu_name">' + nu_esc(t("nu_back")) + '</span>' +
+			'<span class="nu_sub"><span class="nu_n">' + nu_esc(t("nu_back2")) +
 			'</span></span></span>' +
 			'<span class="nu_go">›</span></a>');
 	}
@@ -2076,8 +2087,8 @@ function render_list(shown) {
 			// still the 4096 of the directory inode.
 			sz = d
 				? (nf === null ? "" : cell2("nu_c_sz",
-					nf + " " + t(nf == 1 ? "nu_item" : "nu_items"), humansize(f.sz)))
-				: cell("nu_c_sz", humansize(f.sz)),
+					nf + " " + t(nf == 1 ? "nu_item" : "nu_items"), nu_hsz(f.sz)))
+				: cell("nu_c_sz", nu_hsz(f.sz)),
 			dt = cell2("nu_c_dt", dt_short(f), dt_long(f)),
 			// files only: a folder's ext is "---", so ext_of() would fall
 			// through to guessing from the name and label `my.backup` as
@@ -2085,8 +2096,8 @@ function render_list(shown) {
 			ty = d ? "" : cell("nu_c_ty", ext_of(f));
 
 		h.push('<a class="nu_row ' + (d ? "nu_dir" : "nu_file") +
-			(on ? " nu_on" : "") + '" data-k="' + esc(nk) +
-			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
+			(on ? " nu_on" : "") + '" data-k="' + nu_esc(nk) +
+			'" href="' + nu_esc(d ? keep(f.href) : f.href) + '">' +
 			// the CONTAINER is what the css animates from 0 to 30px, so it
 			// is emitted at every width and in both states; the circle
 			// inside it only ever changes class.
@@ -2095,14 +2106,14 @@ function render_list(shown) {
 			'<span class="nu_type' + (k && k != "dir" ? " nu_t_" + k : "") +
 			(txt.length > 3 ? " nu_long" : "") + '">' + txt + '</span>' +
 			'<span class="nu_meat">' +
-			'<span class="nu_name">' + esc(nm(f)) + '</span>' +
+			'<span class="nu_name">' + nu_esc(nm(f)) + '</span>' +
 			'<span class="nu_sub">' + sz + dt + ty + '</span></span>' +
 			(d ? '<span class="nu_go">›</span>' : '') + '</a>');
 	}
 
 	if (!shown.length)
 		h.push('<p class="nu_empty">' +
-			esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
+			nu_esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
 			'</p>');
 
 	ebi("nu_list").innerHTML = h.join("");
@@ -2286,10 +2297,10 @@ function render_grid(shown) {
 	if (vpnodes.length > 1 && ST.srch.q === null) {
 		var up = vpnodes[vpnodes.length - 2];
 		h.push('<a class="nu_tile nu_dir nu_back" href="' +
-			esc(keep(SR + "/" + up[0])) + '">' +
+			nu_esc(keep(SR + "/" + up[0])) + '">' +
 			'<span class="nu_tb">‹</span>' +
 			'<span class="nu_tk"></span>' +
-			'<span class="nu_tn">' + esc(t("nu_back")) + '</span></a>');
+			'<span class="nu_tn">' + nu_esc(t("nu_back")) + '</span></a>');
 	}
 
 	// cleared here and re-armed per tile: whether the grid is waiting on the
@@ -2309,15 +2320,15 @@ function render_grid(shown) {
 
 		h.push('<a class="nu_tile ' + (d ? "nu_dir" : "nu_file") +
 			(k && k != "dir" ? " nu_k_" + k : "") + (on ? " nu_on" : "") +
-			'" data-k="' + esc(nk) +
-			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
+			'" data-k="' + nu_esc(nk) +
+			'" href="' + nu_esc(d ? keep(f.href) : f.href) + '">' +
 			// the thumbnail sits UNDER the badge and the name, over the
 			// placeholder fill; alt is empty because the name is already
 			// on the tile as text and a screen reader must not read it
 			// twice. .nu_tfit follows the `f` in the url -- the server was
 			// asked to fit rather than crop, so the css may not crop it.
 			(th ? '<img class="nu_ti' + (want_crop() ? "" : " nu_tfit") +
-				'" alt="" src="' + esc(th) + '">' : "") +
+				'" alt="" src="' + nu_esc(th) + '">' : "") +
 			// chip_text() emits a bare entity for "no extension", exactly
 			// as it does for the list's chip, so this is not escaped there
 			// either
@@ -2331,12 +2342,12 @@ function render_grid(shown) {
 			'<span class="nu_tk">' + (ST.selmode ?
 				'<span class="nu_cb' + (on ? " on" : "") + '"></span>' : "") +
 			'</span>' +
-			'<span class="nu_tn">' + esc(nm(f)) + '</span></a>');
+			'<span class="nu_tn">' + nu_esc(nm(f)) + '</span></a>');
 	}
 
 	if (!shown.length)
 		h.push('<p class="nu_empty">' +
-			esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
+			nu_esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
 			'</p>');
 
 	ebi("nu_list").innerHTML = h.join("");
@@ -2392,8 +2403,8 @@ function render_sheet() {
 		var s = SORTS[a], on = s[0] == ST.sortKey;
 		h.push('<button type="button" class="nu_sopt' + (on ? " on" : "") +
 			'" data-k="' + s[0] + '">' +
-			'<span class="nu_slab">' + esc(t(s[1])) + '</span>' +
-			'<span class="nu_shnt">' + esc(t(s[2])) + '</span>' +
+			'<span class="nu_slab">' + nu_esc(t(s[1])) + '</span>' +
+			'<span class="nu_shnt">' + nu_esc(t(s[2])) + '</span>' +
 			'<span class="nu_sdir">' + (on ? (ST.sortDir > 0 ? "↑" : "↓") : "") +
 			'</span></button>');
 	}
@@ -2563,13 +2574,13 @@ function render_acts() {
 		catch (ex) { }
 
 		h.push('<button type="button" class="nu_act nu_a_' + c[0] +
-			'" data-a="' + esc(c[0]) + '"' +
-			(c[2] ? ' aria-label="' + esc(t(c[2])) + '"' : "") +
+			'" data-a="' + nu_esc(c[0]) + '"' +
+			(c[2] ? ' aria-label="' + nu_esc(t(c[2])) + '"' : "") +
 			// aria-disabled, never the disabled attribute: a disabled button
 			// emits no click event at all, and this bar's dead button has to
 			// be tappable to say what it is waiting for.
 			(live ? "" : ' aria-disabled="true"') + '>' +
-			esc(t(c[1])) + '</button>');
+			nu_esc(t(c[1])) + '</button>');
 	}
 
 	el.innerHTML = h.join("");
@@ -2833,9 +2844,9 @@ function render_menu() {
 				continue;
 
 			rows.push('<button type="button" class="nu_mrow" data-m="' +
-				esc(m[0]) + '"' + (m[4] ? "" : " disabled") + '>' +
-				'<span class="nu_mlab">' + esc(mkey(m[1])) + '</span>' +
-				(m[2] ? '<span class="nu_mmeta">' + esc(mkey(m[2])) + '</span>' : "") +
+				nu_esc(m[0]) + '"' + (m[4] ? "" : " disabled") + '>' +
+				'<span class="nu_mlab">' + nu_esc(mkey(m[1])) + '</span>' +
+				(m[2] ? '<span class="nu_mmeta">' + nu_esc(mkey(m[2])) + '</span>' : "") +
 				'<span class="nu_mgo">\u203a</span></button>');
 		}
 
@@ -2843,7 +2854,7 @@ function render_menu() {
 		// header either -- an empty "SERVER" heading is worse than no
 		// heading, it reads as a rendering bug
 		if (rows.length)
-			h.push('<h3 class="nu_mh">' + esc(t(sec[0])) + '</h3>' +
+			h.push('<h3 class="nu_mh">' + nu_esc(t(sec[0])) + '</h3>' +
 				rows.join(""));
 	}
 
@@ -2952,8 +2963,8 @@ function cfg_row(k) {
 }
 
 function cfg_lab(m) {
-	return '<span class="nu_clab"><span class="nu_cl">' + esc(t(m[2])) +
-		'</span>' + (m[3] ? '<span class="nu_cs">' + esc(t(m[3])) +
+	return '<span class="nu_clab"><span class="nu_cl">' + nu_esc(t(m[2])) +
+		'</span>' + (m[3] ? '<span class="nu_cs">' + nu_esc(t(m[3])) +
 			'</span>' : "") + '</span>';
 }
 
@@ -2968,12 +2979,12 @@ function cfg_ctrl(m) {
 		for (a = 0; a < m[5].length; a++) {
 			o = m[5][a];
 			h.push('<button type="button" class="' + cls +
-				(o[0] === cur ? " on" : "") + '" data-c="' + esc(k) +
-				'" data-v="' + esc(o[0]) + '"' +
+				(o[0] === cur ? " on" : "") + '" data-c="' + nu_esc(k) +
+				'" data-v="' + nu_esc(o[0]) + '"' +
 				// the swatch has no text, so its name has to be its label
-				(seg ? "" : ' aria-label="' + esc(t(o[1])) + '"') +
+				(seg ? "" : ' aria-label="' + nu_esc(t(o[1])) + '"') +
 				' aria-pressed="' + (o[0] === cur ? "true" : "false") + '">' +
-				(seg ? esc(t(o[1])) : "") + '</button>');
+				(seg ? nu_esc(t(o[1])) : "") + '</button>');
 		}
 
 		return '<span class="' + (seg ? "nu_seg" : "nu_swz") + '">' +
@@ -2983,9 +2994,9 @@ function cfg_ctrl(m) {
 	if (m[0] == "lang") {
 		for (a = 0; a < LANGN.length; a++) {
 			var code = LANGN[a].slice(0, 3);
-			h.push('<option value="' + esc(code) + '"' +
+			h.push('<option value="' + nu_esc(code) + '"' +
 				(code == lang ? " selected" : "") + '>' +
-				esc(LANGN[a].slice(4)) + '</option>');
+				nu_esc(LANGN[a].slice(4)) + '</option>');
 		}
 		return '<select id="nu_clang" class="nu_csel">' + h.join("") +
 			'</select>';
@@ -3015,7 +3026,7 @@ function render_cfg() {
 				dead = m[0] == "dead";
 
 			rows.push('<' + (tgl ? "button" : "div") + ' class="nu_crow"' +
-				(tgl ? ' type="button" role="switch" data-c="' + esc(m[1]) +
+				(tgl ? ' type="button" role="switch" data-c="' + nu_esc(m[1]) +
 					'" aria-checked="' + (pref(m[1]) ? "true" : "false") + '"'
 					: "") + (dead ? " disabled" : "") + '>' +
 				cfg_lab(m) + (dead ? "" : cfg_ctrl(m)) +
@@ -3025,7 +3036,7 @@ function render_cfg() {
 		// same rule as the router: a group whose every row was gated away
 		// prints no header either
 		if (rows.length)
-			h.push('<h3 class="nu_cgh">' + esc(t(sec[0])) + '</h3>' +
+			h.push('<h3 class="nu_cgh">' + nu_esc(t(sec[0])) + '</h3>' +
 				'<div class="nu_ccard">' + rows.join("") + '</div>');
 	}
 
@@ -3037,7 +3048,7 @@ function render_cfg() {
 			// the language is a server cookie, not a preference: httpcli
 			// resolves `lang` from cplng before the template is rendered
 			// (:344), so the strings can only change on the next load.
-			setck("cplng=" + this.value, function () { location.reload(); });
+			nu_setck("cplng=" + this.value, function () { location.reload(); });
 		};
 }
 
@@ -3219,8 +3230,8 @@ function ctx_show(row, x, y) {
 		catch (ex) { }
 
 		h.push('<button type="button" role="menuitem" class="nu_ctxb" data-k="' +
-			esc(c[0]) + '"' + (ok ? "" : " disabled") + '>' +
-			esc(t(c[1])) + '</button>');
+			nu_esc(c[0]) + '"' + (ok ? "" : " disabled") + '>' +
+			nu_esc(t(c[1])) + '</button>');
 	}
 
 	el.innerHTML = h.join("");
@@ -3342,7 +3353,7 @@ function vw_meta(f, dim) {
 		p.push(dim);
 
 	if (f.sz)
-		p.push(humansize(f.sz));
+		p.push(nu_hsz(f.sz));
 
 	if (d)
 		p.push(d);
@@ -3414,7 +3425,7 @@ function render_vacts() {
 		// only place claiming otherwise.
 		if (ok)
 			h.push('<button type="button" class="nu_vact" data-v="' +
-				esc(v[0]) + '">' + esc(t(v[1])) + '</button>');
+				nu_esc(v[0]) + '">' + nu_esc(t(v[1])) + '</button>');
 	}
 
 	ebi("nu_vwa").innerHTML = h.join("");
@@ -3444,7 +3455,7 @@ function vw_draw() {
 
 	// textContent and not innerHTML, all three: a file name is user input,
 	// and the only thing this file ever hands to innerHTML is a string it
-	// built itself out of esc()
+	// built itself out of nu_esc()
 	ebi("nu_vwn").textContent = nm(f);
 	ebi("nu_vwm").textContent = vw_meta(f, null);
 	ebi("nu_vwc").textContent = (ST.vi + 1) + " / " + list.length;
@@ -3856,7 +3867,7 @@ function tree_node_html(n) {
 	// it to open
 	if (n.dead)
 		return h + '<span class="nu_tw"></span><span class="nu_tl" title="' +
-			esc(t("tree_gone")) + '">' + esc(n.name) + '</span></li>';
+			nu_esc(t("tree_gone")) + '">' + nu_esc(n.name) + '</span></li>';
 
 	// only the chevron expands. the rest of the node navigates, through
 	// keep() so the ?nu mode survives -- keep() already appends &nu rather
@@ -3864,9 +3875,9 @@ function tree_node_html(n) {
 	var href = SR + "/" + (n.ev ? n.ev + "/" : "") + (n.key ? "?k=" + n.key : "");
 
 	h += '<button type="button" class="nu_tw' + (open ? " on" : "") +
-		'" data-vp="' + esc(n.vp) + '" aria-expanded="' + (open ? "true" : "false") +
+		'" data-vp="' + nu_esc(n.vp) + '" aria-expanded="' + (open ? "true" : "false") +
 		'">&rsaquo;</button>' +
-		'<a class="nu_tl" href="' + esc(keep(href)) + '">' + esc(n.name) + '</a>';
+		'<a class="nu_tl" href="' + nu_esc(keep(href)) + '">' + nu_esc(n.name) + '</a>';
 
 	if (open && n.kids)
 		h += '<ul class="nu_tul">' + tree_kids_html(n.kids) + '</ul>';
@@ -3886,7 +3897,7 @@ function render_tree(el) {
 	if (!ST.tree.root)
 		return;
 
-	el.innerHTML = '<h2 class="nu_th">' + esc(t("tree_h")) + '</h2>' +
+	el.innerHTML = '<h2 class="nu_th">' + nu_esc(t("tree_h")) + '</h2>' +
 		'<ul class="nu_tul nu_troot">' + tree_node_html(ST.tree.root) + '</ul>';
 
 	el.onclick = function (e) {
@@ -4050,12 +4061,12 @@ function render_tsh() {
 
 	var el = ebi("nu_tshb");
 	if (!ST.tree.root)
-		el.innerHTML = '<p class="nu_empty">' + esc(t("nu_tsh_wait")) + '</p>';
+		el.innerHTML = '<p class="nu_empty">' + nu_esc(t("nu_tsh_wait")) + '</p>';
 
 	tree_get(function (err) {
 		if (err)
 			return (el.innerHTML =
-				'<p class="nu_empty">' + esc(t("nu_tsh_err")) + '</p>');
+				'<p class="nu_empty">' + nu_esc(t("nu_tsh_err")) + '</p>');
 
 		render_tree(el);
 	});
@@ -4125,7 +4136,7 @@ function set_dots(v) {
 	// (httpcli.py:7435), so `dots=` -- the empty value that expires it -- is
 	// how it is turned off. `dots=y` matches what the classic UI writes
 	// (browser.js:6983), so the two UIs agree on the first paint too.
-	setck("dots=" + (v ? "y" : ""));
+	nu_setck("dots=" + (v ? "y" : ""));
 
 	tree_reset();
 
@@ -4549,8 +4560,8 @@ function set_dots(v) {
 	fetch_ls(location.pathname, function (err, ls) {
 		if (err)
 			return (ebi("nu_list").innerHTML =
-				'<p class="nu_empty">' + esc(t("nu_eload")) + ': ' + esc(err.message) +
-				' &mdash; <a href="?nu0">' + esc(t("nu_eold")) + '</a></p>');
+				'<p class="nu_empty">' + nu_esc(t("nu_eload")) + ': ' + nu_esc(err.message) +
+				' &mdash; <a href="?nu0">' + nu_esc(t("nu_eold")) + '</a></p>');
 
 		take(ls);
 	});
