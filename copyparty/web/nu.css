@@ -1,28 +1,188 @@
-/* the new UI -- skeleton.
-   deliberately standalone: does NOT load ui.css / browser.css, so the
-   classic UI keeps its looks no matter what happens in here. */
+/* the new UI. standalone on purpose: does NOT load ui.css / browser.css,
+   so nothing here can reach the classic UI and vice versa.
+   tokens follow design-handoff/ (mobile redesign, hi-fi). */
 
-:root,
-html[data-thm="light"] {
-	--bg: #f4f4f6;
-	--bg2: #fff;
-	--fg: #1c1c20;
-	--fg2: #6a6a75;
-	--acc: #2b6cb0;
-	--line: #dcdce2;
+:root {
+	/* the accent is a HUE, not a colour. the handoff's four accents share
+	   lightness and chroma and differ only in hue (README:297-298: "Trocar
+	   acento não deve exigir mais nada"), and both --accent and --ring are
+	   redefined per theme -- so a settings screen that wrote --accent would
+	   have to write six values and would still lose the ring the moment the
+	   theme changed. it writes --acc-h instead, one property, on <html>,
+	   where it outranks every :root rule below and survives the swap. */
+	--acc-h: 300;
+	--accent: oklch(0.55 0.13 var(--acc-h));
+	--danger: oklch(0.52 0.16 25);
+	--on-accent: #fff;
+
+	--bg: #f6f6f8;
+	--surface: #fbfbfd;
+	--fill: #ececf1;
+	--line: #e4e4ea;
+	--line-soft: #eeeef3;
+	--fg: #16171a;
+	--fg2: #8a8f98;
+	--fg3: #5c616b;
+	--fg4: #a3a7b0;
+	--chev: #c3c6ce;
+	/* the settings toggle's OFF track (README:213). not --fill: an
+	   unchecked switch has to read as a control at rest, and --fill is the
+	   search box's own ground. */
+	--tgl-off: #dcdee5;
+	/* the selection circle at rest (README:117-119). not --chev: the
+	   chevron is a glyph and this is a 2px stroke around nothing, and the
+	   handoff gives them two different greys on purpose. */
+	--cb-off: #c9ccd4;
+	/* the swipe track and the Link button standing on it (README:244). the
+	   track is what shows behind a row on its way out, so it is its own
+	   token and not --fill: --fill is the search box's ground, and a row
+	   sliding off had better not read as a text input underneath. */
+	--sw-track: #eceaf4;
+	--sw-link: #d9d8e4;
+	--sw-link-fg: #3c3a52;
+	--sel: #f0edf9;
+	/* --sel is the :active / selected fill; hover is a weaker, separate
+	   state and must not borrow it, or a mouseover reads as a selection */
+	--hov: #f2f2f6;
+	--ring: oklch(0.58 0.17 var(--acc-h));
+
+	--t-dir-bg: #e9e6f5;
+	--t-any-bg: #e6e7ec;
+	--t-any-fg: #6b7079;
+	--t-vid-bg: #e4e0f2;
+	--t-vid-fg: #5b4aa8;
+	--t-img-bg: #dfeae4;
+	--t-img-fg: #2f6b4f;
+	--t-doc-bg: #eae6dc;
+	--t-doc-fg: #7a6437;
+	--t-aud-bg: #f4ece0;
+	--t-aud-fg: #8a5a2c;
+
+	/* the grid tile's placeholder fills (README:146-150). they are the
+	   `background` shorthand's value and not a colour, because two of the
+	   three are gradients -- one property either way, so a tile's kind
+	   picks a token and nothing has to know which kind it got. a real
+	   thumbnail is drawn OVER this, so the fill is also the fallback when
+	   one fails to load. */
+	--tile-dir: #ebe8f5;
+	--tile-img: repeating-linear-gradient(135deg, #e6e3f0 0 7px, #dedaea 7px 14px);
+	--tile-any: repeating-linear-gradient(135deg, #eceef1 0 7px, #e4e7eb 7px 14px);
+	/* the two chrome boxes on top of it: the extension badge and the name
+	   footer are translucent so the fill (or the thumbnail) reads through */
+	--tile-badge: rgba(255, 255, 255, .72);
+	--tile-badge-fg: #7c7a8c;
+	--tile-foot: rgba(251, 251, 253, .88);
+
+	--head-bg: rgba(246, 246, 248, .92);
+	--foot-bg: rgba(246, 246, 248, .94);
+	--veil: rgba(20, 20, 30, .28);
+	--sheet-sh: 0 -12px 40px rgba(20, 20, 30, .16);
+
+	/* the sticky header's measured height. nu.js overwrites this from a
+	   ResizeObserver on #nu_top; the fallback has to be close, or anything
+	   docked under the header (the tree) starts life behind the blur. */
+	--head-h: 8.5em;
+
+	/* the design is light-first; these are the type stacks the repo uses */
+	--font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
+	--mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
-html[data-thm="dark"] {
-	--bg: #16161a;
-	--bg2: #1e1e24;
-	--fg: #e6e6ea;
-	--fg2: #9a9aa5;
-	--acc: #79b8ff;
-	--line: #2c2c34;
+/* the handoff only specifies the light palette; dark is derived so the UI
+   is not blinding at night. re-tint here, never in the rules below. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-thm="light"]) {
+		--bg: #0f1013;
+		--surface: #16171b;
+		--fill: #23242a;
+		--line: #26272e;
+		--line-soft: #1f2026;
+		--fg: #edeef2;
+		--fg2: #8b909b;
+		--fg3: #a8adb8;
+		--fg4: #6a6f7a;
+		--chev: #4b505a;
+		--tgl-off: #33353d;
+		--cb-off: #3d414b;
+		--sw-track: #201c2e;
+		--sw-link: #2e2942;
+		--sw-link-fg: #cfcbe4;
+		--sel: #241f33;
+		--hov: #1d1e24;
+		--ring: oklch(0.78 0.15 var(--acc-h));
+		--tile-dir: #2a2340;
+		--tile-img: repeating-linear-gradient(135deg, #221d33 0 7px, #1c1830 7px 14px);
+		--tile-any: repeating-linear-gradient(135deg, #1f2026 0 7px, #191a1f 7px 14px);
+		--tile-badge: rgba(15, 16, 19, .72);
+		--tile-badge-fg: #9aa0ab;
+		--tile-foot: rgba(22, 23, 27, .88);
+
+		--head-bg: rgba(15, 16, 19, .92);
+		--foot-bg: rgba(15, 16, 19, .94);
+		--accent: oklch(0.72 0.12 var(--acc-h));
+		--on-accent: #16171a;
+
+		--t-dir-bg: #2a2340;
+		--t-any-bg: #23242a;
+		--t-any-fg: #9aa0ab;
+		--t-vid-bg: #262040;
+		--t-vid-fg: #b3a4ee;
+		--t-img-bg: #172b22;
+		--t-img-fg: #7fc9a3;
+		--t-doc-bg: #2a2418;
+		--t-doc-fg: #d8bd82;
+		--t-aud-bg: #2d2016;
+		--t-aud-fg: #e0a877;
+	}
+}
+
+:root[data-thm="dark"] {
+	--bg: #0f1013;
+	--surface: #16171b;
+	--fill: #23242a;
+	--line: #26272e;
+	--line-soft: #1f2026;
+	--fg: #edeef2;
+	--fg2: #8b909b;
+	--fg3: #a8adb8;
+	--fg4: #6a6f7a;
+	--chev: #4b505a;
+	--tgl-off: #33353d;
+	--cb-off: #3d414b;
+	--sw-track: #201c2e;
+	--sw-link: #2e2942;
+	--sw-link-fg: #cfcbe4;
+	--sel: #241f33;
+	--hov: #1d1e24;
+	--ring: oklch(0.78 0.15 var(--acc-h));
+	--tile-dir: #2a2340;
+	--tile-img: repeating-linear-gradient(135deg, #221d33 0 7px, #1c1830 7px 14px);
+	--tile-any: repeating-linear-gradient(135deg, #1f2026 0 7px, #191a1f 7px 14px);
+	--tile-badge: rgba(15, 16, 19, .72);
+	--tile-badge-fg: #9aa0ab;
+	--tile-foot: rgba(22, 23, 27, .88);
+
+	--head-bg: rgba(15, 16, 19, .92);
+	--foot-bg: rgba(15, 16, 19, .94);
+	--accent: oklch(0.72 0.12 var(--acc-h));
+	--on-accent: #16171a;
+
+	--t-dir-bg: #2a2340;
+	--t-any-bg: #23242a;
+	--t-any-fg: #9aa0ab;
+	--t-vid-bg: #262040;
+	--t-vid-fg: #b3a4ee;
+	--t-img-bg: #172b22;
+	--t-img-fg: #7fc9a3;
+	--t-doc-bg: #2a2418;
+	--t-doc-fg: #d8bd82;
+	--t-aud-bg: #2d2016;
+	--t-aud-fg: #e0a877;
 }
 
 * {
 	box-sizing: border-box;
+	-webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -34,150 +194,2243 @@ body {
 body {
 	background: var(--bg);
 	color: var(--fg);
-	font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
-	display: flex;
-	flex-direction: column;
+	font: 15px/1.5 var(--font);
 	min-height: 100vh;
+	overscroll-behavior-y: none;
 }
 
 a {
-	color: var(--acc);
+	color: inherit;
 	text-decoration: none;
 }
 
-a:hover {
-	text-decoration: underline;
-}
+/* ---- header ---- */
 
 #nu_top {
-	display: flex;
-	align-items: center;
-	gap: 1em;
-	padding: .7em 1em;
-	background: var(--bg2);
-	border-bottom: 1px solid var(--line);
 	position: sticky;
 	top: 0;
-	z-index: 2;
+	z-index: 3;
+	background: var(--head-bg);
+	-webkit-backdrop-filter: blur(12px);
+	backdrop-filter: blur(12px);
+	border-bottom: 1px solid var(--line);
+	padding-top: env(safe-area-inset-top);
 }
 
-#nu_crumbs {
-	flex: 1;
-	min-width: 0;
-	overflow-x: auto;
-	white-space: nowrap;
-}
-
-#nu_crumbs a+a::before {
-	content: "/";
-	color: var(--fg2);
-	margin: 0 .35em;
-}
-
-#nu_tools {
+#nu_nav {
 	display: flex;
 	align-items: center;
-	gap: .8em;
-	flex-shrink: 0;
+	gap: 6px;
+	padding: 0 10px;
 }
 
-#nu_pin,
-#nu_thm {
-	background: none;
-	border: 1px solid var(--line);
-	border-radius: 4px;
-	color: var(--fg);
-	cursor: pointer;
-	font-size: 1em;
-	padding: .1em .5em;
+#nu_nav>* {
+	min-height: 44px;
+	display: flex;
+	align-items: center;
 }
 
-#nu_old {
-	font-size: .85em;
-	color: var(--fg2);
+#nu_up {
+	color: var(--accent);
+	font-size: 15px;
+	font-weight: 500;
+	max-width: 34%;
+	flex: 0 0 auto;
 }
 
-#nu_main {
-	flex: 1;
-	padding: 1em;
+#nu_up.nu_hidden {
+	visibility: hidden;
 }
 
-#nu_files {
-	width: 100%;
-	border-collapse: collapse;
-	background: var(--bg2);
-	border: 1px solid var(--line);
-	border-radius: 6px;
+.nu_chev {
+	font-size: 22px;
+	line-height: 1;
+	margin-right: 1px;
+}
+
+#nu_upn {
 	overflow: hidden;
-}
-
-#nu_files th {
-	text-align: left;
-	font-size: .78em;
-	text-transform: uppercase;
-	letter-spacing: .05em;
-	color: var(--fg2);
-	font-weight: 600;
-	padding: .6em .8em;
-	border-bottom: 1px solid var(--line);
-}
-
-#nu_files td {
-	padding: .45em .8em;
-	border-bottom: 1px solid var(--line);
-}
-
-#nu_files tr:last-child td {
-	border-bottom: 0;
-}
-
-#nu_files tbody tr:hover {
-	background: color-mix(in srgb, var(--acc) 8%, transparent);
-}
-
-.nu_s,
-.nu_d {
-	text-align: right;
-	color: var(--fg2);
-	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
 	white-space: nowrap;
-	width: 1%;
 }
 
-.nu_n a {
-	color: var(--fg);
-}
-
-.nu_dir .nu_n a {
+#nu_here {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	justify-content: center;
+	font-size: 17px;
 	font-weight: 600;
-}
-
-.nu_empty,
-.nu_err {
-	color: var(--fg2);
-	padding: 2em 0;
+	letter-spacing: -.01em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	display: block;
+	line-height: 44px;
 	text-align: center;
 }
 
-#nu_foot {
-	display: flex;
-	justify-content: space-between;
-	gap: 1em;
-	padding: .6em 1em;
-	font-size: .8em;
-	color: var(--fg2);
-	border-top: 1px solid var(--line);
+/* the folder title is a control below 64em: it opens the tree sheet. the
+   h1 keeps the type, the centering and the truncation of the row; the
+   button inside it is the hit area. its height is the h1's own line-height
+   so the nav row does not grow by a pixel, and `vertical-align: top` keeps
+   the line box exactly that tall. */
+#nu_hereb {
+	display: inline-flex;
+	align-items: center;
+	vertical-align: top;
+	gap: 4px;
+	max-width: 100%;
+	height: 44px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	letter-spacing: inherit;
+	line-height: 1;
+	cursor: pointer;
 }
 
-#nu_foot span {
+#nu_hereb:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+	border-radius: 8px;
+}
+
+#nu_heren {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_hered {
+	flex: 0 0 auto;
+	font-size: 11px;
+	font-weight: 400;
+	color: var(--fg4);
+}
+
+/* nu.js disables the button wherever the sheet is not the container -- at
+   >= 64em, where the dock is, and on --ui-notree, where there is no widget
+   at all. the caret is the affordance for a tap, so it goes with it: one
+   attribute, and the title is a plain heading again. */
+#nu_hereb[disabled] {
+	cursor: default;
+}
+
+#nu_hereb[disabled] #nu_hered {
+	display: none;
+}
+
+/* the nav bar's right slot (README:96-97): 14px/500, muted outside the
+   mode and accent inside it. both states are declared here and the mode is
+   one attribute on <html>, so nothing else has to know which is showing.
+   #nu_nav>* above already gives it the 44px target. */
+#nu_selb {
+	flex: 0 0 auto;
+	border: 0;
+	background: none;
+	padding: 0 2px;
+	font: 500 14px var(--font);
+	color: var(--fg2);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+:root[data-sel] #nu_selb {
+	color: var(--accent);
+}
+
+#nu_selb:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+	border-radius: 6px;
+}
+
+#nu_srch {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin: 0 16px 8px;
+	height: 40px;
+	padding: 0 11px;
+	border-radius: 12px;
+	background: var(--fill);
+}
+
+#nu_srch .nu_ico {
+	font-size: 14px;
+	color: var(--fg2);
+	flex: 0 0 auto;
+}
+
+#nu_q {
+	flex: 1;
+	min-width: 0;
+	border: 0;
+	background: none;
+	font: 15px var(--font);
+	color: var(--fg);
+	outline: none;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+/* the search box zeroes the UA outline for the pill look; give it a real
+   ring back, or the keyboard loses the one control it lands on first. */
+#nu_q:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+}
+
+#nu_q::placeholder {
+	color: var(--fg2);
+}
+
+#nu_q::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+}
+
+/* the search strip: what the last submit answered, or why it did not. it
+   sits between the box and the chips, and js keeps the `hidden` attribute
+   on it whenever there is nothing to say -- so it costs no pixels at all
+   until Enter is pressed.
+
+   the [hidden] rule is not redundant: `display: flex` out-specifies the
+   UA's own `[hidden] { display: none }`, so without it the strip would be
+   a permanent empty 12px band on every unindexed volume in the world. */
+#nu_qmsg {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 10px;
+	margin: 0 16px 8px;
+	font: 12px var(--font);
+	color: var(--fg2);
+}
+
+#nu_qmsg[hidden] {
+	display: none;
+}
+
+/* the message gives way, the button never does: "search failed -- rate
+   limit 0.7 sec, cost 1.31, idle 0.02" is a sentence, and the way out of
+   it must not be the thing that wraps off the end of the line. */
+.nu_qt {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-@media (max-width: 640px) {
-	.nu_d {
+#nu_qx {
+	flex: 0 0 auto;
+	border: 0;
+	background: none;
+	padding: 0;
+	font: 500 12px var(--font);
+	color: var(--accent);
+	cursor: pointer;
+}
+
+#nu_qx:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+	border-radius: 6px;
+}
+
+#nu_chips {
+	display: flex;
+	gap: 6px;
+	padding: 0 16px 8px;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+#nu_chips::-webkit-scrollbar {
+	display: none;
+}
+
+.nu_chip {
+	flex: 0 0 auto;
+	height: 32px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 16px;
+	background: var(--fill);
+	color: var(--fg3);
+	font: 500 13px var(--font);
+	cursor: pointer;
+}
+
+.nu_chip:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+.nu_chip.on {
+	background: var(--accent);
+	color: var(--on-accent);
+	font-weight: 600;
+}
+
+#nu_stat {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 0 18px 8px;
+	font-size: 12px;
+	color: var(--fg2);
+}
+
+#nu_acts {
+	display: flex;
+	gap: 14px;
+	flex: 0 0 auto;
+}
+
+/* the status line's two controls, one rule: the design gives them the same
+   12px/500 accent type and puts them side by side (README:109-111). */
+#nu_sort,
+#nu_view {
+	border: 0;
+	background: none;
+	padding: 0;
+	color: var(--accent);
+	font: 500 12px var(--font);
+	cursor: pointer;
+}
+
+/* the slot 0001 card 1's action bar renders into at width -- see the
+   >= 64em band for its placement and its contract. :empty is load-bearing
+   and not cosmetic: #nu_acts is a flex row with `gap: 14px`, so a slot
+   that is still a flex item while it holds nothing would push #nu_sort
+   14px left at EVERY width, the phone included. while it holds nothing it
+   holds no box either, which is also why the wide rule below is written
+   at lower specificity than this one. */
+#nu_tools:empty {
+	display: none;
+}
+
+/* the sort button and the back link -- #nu_up is one of the header's
+   buttons in everything but tag name. */
+#nu_sort:focus-visible,
+#nu_view:focus-visible,
+#nu_up:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+	border-radius: 6px;
+}
+
+/* ---- list ---- */
+
+#nu_main {
+	padding-bottom: calc(28px + env(safe-area-inset-bottom));
+	/* the offsetParent the swipe track is placed against. #nu_main and not
+	   #nu_list on purpose: #nu_list.innerHTML is rewritten on every draw,
+	   and a track mounted inside it would be destroyed by a keystroke in
+	   the filter box. */
+	position: relative;
+}
+
+/* the column header, hidden everywhere but the wide band -- the narrow and
+   the middle band keep the status line's sort button as their door.
+
+   this is `display: none` and NOT a `hidden` attribute: `hidden` is a UA
+   display:none that the band rule then has to out-specify, which works from
+   an id today and breaks in silence the day the rule moves to a class. one
+   mechanism, in one file. (#nu_tree keeps its `hidden` -- js owns that one,
+   not a band.) */
+#nu_head {
+	display: none;
+}
+
+.nu_row {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	/* 14px 16px is the touch row: a 44px target, a finger constraint. the
+	   wide band swaps in the handoff's compact metric through --row-pad. */
+	padding: var(--row-pad, 14px 16px);
+	background: var(--surface);
+	border-bottom: 1px solid var(--line-soft);
+	width: 100%;
+	text-align: left;
+	/* the row rides ABOVE the swipe track and its background is opaque, so
+	   the track is visible through exactly the strip the row has vacated
+	   and nowhere else. */
+	position: relative;
+	z-index: 1;
+	transition: background .12s ease,
+		transform .22s cubic-bezier(.2, .9, .3, 1);
+}
+
+/* no transition at all while the finger is down (README:250). with the
+   .22s live the row trails the thumb by a fifth of a second, which does not
+   read as a slow row -- it reads as a broken one. */
+.nu_row.nu_drag {
+	transition: none;
+}
+
+/* hover is an input capability, never a width: a 1400px touch tablet must
+   get no hover fill at all, so this is gated on the pointer and not on the
+   band. it is declared ABOVE :active on purpose -- both selectors are one
+   class plus one pseudo-class, so specificity ties and source order is the
+   whole tiebreak; below it, a hover would repaint the row the user is
+   currently pressing. */
+@media (hover: hover) and (pointer: fine) {
+	.nu_row:hover {
+		background: var(--hov);
+	}
+}
+
+.nu_row:active {
+	background: var(--sel);
+}
+
+/* the ring. :focus-visible and not :focus, so a mouse click on a row does
+   not leave one behind -- the keyboard traversal is what this is for. */
+.nu_row:focus-visible {
+	/* the row is full-bleed, so a positive offset would be clipped at the
+	   viewport edge; inset it instead */
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
+}
+
+/* a selected row takes the palette's own selection fill. declared BELOW
+   :hover and :active on purpose: all three are one class plus one more
+   simple selector, so specificity ties and source order is the whole
+   tiebreak -- above them, a mouse merely passing over a marked row would
+   repaint it as unselected. */
+.nu_row.nu_on {
+	background: var(--sel);
+}
+
+/* the density opt-out. the wide band sets --row-pad on :root inside a media
+   query, and a media query adds no specificity -- so this attribute rule
+   outranks it wherever it appears, and the settings toggle that will drive
+   it only ever has to write the attribute. */
+:root[data-dens="touch"] {
+	--row-pad: 14px 16px;
+}
+
+/* ---- the swipe track ---- */
+
+/* the browser keeps the vertical pan and nu takes the horizontal one. this
+   declaration is what lets the gesture listeners stay PASSIVE: without it
+   the only way to stop the list panning sideways under a swipe is
+   preventDefault() from a non-passive touchmove, and that is a cost the
+   whole scroller pays on every finger, swipe or not.
+
+   gated on the pointer and not on a width, for the same reason every other
+   gesture here is: nu.js does not install the listeners under a mouse, and
+   a touch-action left behind for one would be a rule with no gesture. */
+@media (pointer: coarse) {
+	.nu_row {
+		touch-action: pan-y;
+	}
+}
+
+/* ONE track for the whole list, moved to whichever row is open -- it is
+   nu.js that mounts it, and only under a coarse pointer, so there is no
+   markup for it in nu.html and no box for it at rest. */
+#nu_swipe {
+	position: absolute;
+	right: 0;
+	display: flex;
+	z-index: 0;
+	background: var(--sw-track);
+}
+
+/* display:flex above outranks the UA's [hidden] { display: none }, so the
+   hidden state has to be re-stated or the track never leaves. */
+#nu_swipe[hidden] {
+	display: none;
+}
+
+.nu_swb {
+	/* 84px each, so both together are the 168px the row travels
+	   (README:244) -- the track is exactly as wide as the gesture is long */
+	width: 84px;
+	border: 0;
+	padding: 0;
+	font: 500 13px var(--font);
+	cursor: pointer;
+}
+
+.nu_sw_link {
+	background: var(--sw-link);
+	color: var(--sw-link-fg);
+}
+
+.nu_sw_rm {
+	background: var(--danger);
+	color: #fff;
+}
+
+/* ---- pull to refresh ---- */
+
+/* a strip that GROWS at the top of #nu_main, from a height of 0 -- so it
+   pushes the list down by exactly its own height and there is nothing to
+   undo when the gesture is abandoned. nu.js mounts it, and only under a
+   coarse pointer.
+
+   no transition on the height: while the finger is down the strip has to
+   be where the finger is, and the release is a state change (48px, then 0)
+   that a .22s spring would only blur.
+
+   the browser's OWN overscroll is the competition here -- on android
+   chrome that is a second pull-to-refresh, firing over this one -- and it
+   is already dealt with: `body` carries `overscroll-behavior-y: none` at
+   every width. nothing is added for it here; gst_move's preventDefault is
+   the belt for the platforms that property does not reach. */
+#nu_pull {
+	height: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	font: 500 12px var(--font);
+	color: var(--fg2);
+}
+
+/* ---- the selection checkbox ----
+
+   the CONTAINER is what animates, 0 -> 30px (README:117-119), and not the
+   circle's opacity: a fade would leave every other cell where it was and
+   the checkbox would appear ON TOP of the type chip instead of pushing it.
+   the circle inside is a fixed 22px and never moves.
+
+   .nu_row's `gap: 14px` counts a zero-width flex item too, so a collapsed
+   container would still indent every row by 14px whenever the mode is off.
+   the negative margin gives exactly that gap back, and it is transitioned
+   with the width so the row slides once rather than jumping first.
+
+   the wide band throws all of this away -- up there the column is
+   permanent and there is nothing to animate. */
+.nu_ck {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	width: 0;
+	margin-right: -14px;
+	overflow: hidden;
+	transition: width .18s ease, margin-right .18s ease;
+}
+
+:root[data-sel] .nu_ck {
+	width: 30px;
+	margin-right: 0;
+}
+
+/* one circle for both renderers: the list's cell holds it and a tile's
+   top-right slot holds the same element, so the marked state is one rule
+   and not two. */
+.nu_cb {
+	flex: 0 0 auto;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 2px solid var(--cb-off);
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font: 700 12px var(--font);
+	color: var(--on-accent);
+}
+
+.nu_cb.on {
+	border-color: var(--accent);
+	background: var(--accent);
+}
+
+/* the tick is content and not markup, so an unmarked circle carries no
+   glyph to hide and the two states differ by one class. */
+.nu_cb.on::after {
+	content: "\2713";
+}
+
+.nu_type {
+	flex: 0 0 auto;
+	width: 42px;
+	height: 42px;
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font: 500 11px var(--mono);
+	letter-spacing: .02em;
+	background: var(--t-bg, var(--t-any-bg));
+	color: var(--t-fg, var(--t-any-fg));
+}
+
+.nu_type.nu_long {
+	font-size: 10px;
+}
+
+.nu_dir .nu_type {
+	--t-bg: var(--t-dir-bg);
+	--t-fg: var(--accent);
+}
+
+.nu_meat {
+	flex: 1;
+	min-width: 0;
+}
+
+.nu_name {
+	display: block;
+	font-size: 15px;
+	font-weight: 500;
+	line-height: 1.25;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.nu_sub {
+	display: block;
+	margin-top: 3px;
+	font-size: 12px;
+	color: var(--fg2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* the meta line's separators live here now, not in the string js used to
+   concatenate -- a column cannot be a substring. render_list never emits a
+   cell with nothing in it, so this needs no :empty guard: an unindexed
+   folder simply has no size cell, and its date is the first child and gets
+   no separator in front of it. */
+.nu_sub > * + *::before {
+	content: " · ";
+}
+
+/* a dual-form cell carries both texts and css picks, because a row may not
+   be re-rendered to reformat itself when the window changes width. the
+   wide form is dead weight until the wide band asks for it. */
+.nu_w {
+	display: none;
+}
+
+/* type sheds first, below 80em: it is the one field with a second
+   representation already on the row -- the type chip, which stays at every
+   width. it is also the last child of .nu_sub, so hiding it orphans
+   nothing; there is no cell after it to inherit the separator.
+
+   the header's Type button sheds in the same breath, and not for looks:
+   `ty` is not a grid line below 80em, and grid-column naming a line that
+   does not exist resolves against the implicit grid -- one extra column,
+   and every header cell after it sits a track off its own column. a
+   display:none element is not a grid item at all, so shedding is the fix. */
+@media (max-width: 79.99em) {
+	.nu_c_ty,
+	.nu_h_ty {
 		display: none;
+	}
+}
+
+.nu_go {
+	flex: 0 0 auto;
+	font-size: 18px;
+	color: var(--chev);
+	line-height: 1;
+}
+
+.nu_empty {
+	color: var(--fg2);
+	padding: 3em 1em;
+	text-align: center;
+	font-size: 14px;
+}
+
+/* extension palette from the handoff; the dark values live with the other
+   theme tokens so a manual data-thm="dark" gets them too, not just the OS */
+.nu_t_vid {
+	--t-bg: var(--t-vid-bg);
+	--t-fg: var(--t-vid-fg);
+}
+
+.nu_t_img {
+	--t-bg: var(--t-img-bg);
+	--t-fg: var(--t-img-fg);
+}
+
+.nu_t_doc {
+	--t-bg: var(--t-doc-bg);
+	--t-fg: var(--t-doc-fg);
+}
+
+.nu_t_aud {
+	--t-bg: var(--t-aud-bg);
+	--t-fg: var(--t-aud-fg);
+}
+
+/* ---- grid view ----
+
+   the one sanctioned second renderer (docs/nu-ui.md:88-92): a different
+   presentation of the same data, not a different width of the same
+   presentation. so it is the one surface here whose layout is keyed on a
+   PREFERENCE and not on a band -- `data-view` is written on <html> by
+   apply_prefs(), before the first paint, and the bands below then give the
+   same tiles a wider size.
+
+   #nu_list is the same container the list renders into; nothing here
+   restyles .nu_row, and nothing in the list section reaches a tile. */
+
+:root[data-view="grid"] #nu_list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	/* the 120px is clearance for the fixed action bar (93px of box plus
+	   air); the wide band takes it back, where there is no fixed bar */
+	padding: 8px 12px 120px;
+}
+
+/* the column header is a LIST affordance -- it is the wide band's sort
+   control, and a grid has no columns for it to label. so it goes at every
+   width in grid view, and #nu_sort in the status line stays the door the
+   sort keeps at every width and in both views.
+
+   two classes plus an id beats the wide band's `#nu_head { display: grid }`
+   on specificity, so this needs no !important and no place in the query. */
+:root[data-view="grid"] #nu_head {
+	display: none;
+}
+
+/* 114 x 114, radius 12 (README:145-146). the column count is NOT declared:
+   114 x 3 + 6 x 2 = 354 inside 390 - 24 of padding, so three columns fall
+   out of the tile size at the design width, and a wider window gets more of
+   them by wrapping rather than by a second rule. */
+.nu_tile {
+	position: relative;
+	display: block;
+	flex: 0 0 auto;
+	width: 114px;
+	height: 114px;
+	border-radius: 12px;
+	overflow: hidden;
+	background: var(--tile-any);
+}
+
+.nu_tile.nu_dir {
+	background: var(--tile-dir);
+}
+
+.nu_tile.nu_k_img {
+	background: var(--tile-img);
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.nu_tile:hover {
+		outline: 2px solid var(--line);
+		outline-offset: -2px;
+	}
+}
+
+.nu_tile:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+/* the real thumbnail, drawn over the tile's placeholder fill and under the
+   badge and the name. the fill stays underneath as the fallback, which is
+   why th_dead() can simply drop the <img> and needs no second markup. */
+.nu_ti {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* `f` in the request means the server FITS the image inside the box rather
+   than cropping it, so `cover` here would crop what the server was asked
+   not to. the two have to agree, and the class rides on the <img> so
+   nothing has to be plumbed through an attribute to say so. */
+.nu_ti.nu_tfit {
+	object-fit: contain;
+}
+
+/* the extension badge, top-left: the same word the list's type chip
+   carries, in the design's own metric (README:147-149) */
+.nu_tb {
+	position: absolute;
+	top: 6px;
+	left: 6px;
+	padding: 2px 5px;
+	border-radius: 5px;
+	font: 500 9px var(--mono);
+	letter-spacing: .08em;
+	background: var(--tile-badge);
+	color: var(--tile-badge-fg);
+}
+
+/* the top-right slot, reserved for card 5's 22px checkbox and empty until
+   it lands. :empty and not a width query, the same mechanism #nu_tools
+   uses: an unused slot must cost no box, and content is what decides. */
+.nu_tk {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	width: 22px;
+	height: 22px;
+}
+
+.nu_tk:empty {
+	display: none;
+}
+
+/* over a thumbnail an unmarked circle is a grey ring on a photograph, so
+   it gets the same translucent ground the extension badge sits on. the
+   marked one does not: it is already a filled accent disc. */
+.nu_tk .nu_cb {
+	background: var(--tile-badge);
+}
+
+.nu_tk .nu_cb.on {
+	background: var(--accent);
+}
+
+/* a tile has no row to fill, so the marked state is a ring. it is an
+   outline and not a border: a border would shrink the 114px box and
+   reflow the whole wrap on every tap. */
+.nu_tile.nu_on {
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
+}
+
+/* the name footer (README:153-155). truncation is the whole reason it is
+   its own box: a tile is 114px and a filename is not. */
+.nu_tn {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 6px 7px;
+	font: 500 11px var(--font);
+	color: var(--fg);
+	background: var(--tile-foot);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ---- sheet ---- */
+
+#nu_veil {
+	position: fixed;
+	inset: 0;
+	z-index: 8;
+	background: var(--veil);
+	opacity: 0;
+	transition: opacity .26s cubic-bezier(.2, .9, .3, 1);
+}
+
+#nu_veil.on {
+	opacity: 1;
+}
+
+/* the shell, shared by every tenant of sheet(): the sort sheet and the ...
+   router today, and whatever the next spec mounts here. one shell means one
+   transition, one shadow and one set of band overrides to keep honest --
+   which is the whole reason sheet() stopped hardcoding an element id. */
+#nu_sheet,
+#nu_menu,
+#nu_tsh {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 9;
+	max-height: 600px;
+	overflow-y: auto;
+	background: var(--surface);
+	border-radius: 22px 22px 0 0;
+	box-shadow: var(--sheet-sh);
+	padding: 10px 12px calc(26px + env(safe-area-inset-bottom));
+	transform: translateY(110%);
+	transition: transform .26s cubic-bezier(.2, .9, .3, 1);
+}
+
+#nu_sheet.on,
+#nu_menu.on,
+#nu_tsh.on {
+	transform: translateY(0);
+}
+
+/* the router is taller than the sort sheet by design (README:184): it holds
+   two sections and it is the surface that grows. */
+#nu_menu {
+	max-height: 560px;
+}
+
+/* the house guard, same as ui.css:641 and browser.css:3326. it lives after
+   the transitions it cancels and the width bands never re-declare them, so
+   this holds in every band. */
+@media (prefers-reduced-motion) {
+
+	#nu_veil,
+	#nu_sheet,
+	#nu_menu,
+	#nu_tsh,
+	#nu_cfg,
+	#nu_vwr,
+	.nu_tgl,
+	.nu_tgl .nu_knob,
+	.nu_row {
+		transition: none;
+	}
+}
+
+.nu_grip {
+	width: 38px;
+	height: 4px;
+	border-radius: 2px;
+	background: #d9dbe2;
+	margin: 2px auto 12px;
+}
+
+.nu_shead {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 0 10px 6px;
+}
+
+.nu_shead h2 {
+	margin: 0;
+	font-size: 17px;
+	font-weight: 600;
+}
+
+.nu_hint {
+	font-size: 12px;
+	color: var(--fg2);
+}
+
+.nu_sopt {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	min-height: 52px;
+	padding: 0 10px;
+	border: 0;
+	border-radius: 14px;
+	background: none;
+	color: var(--fg);
+	font: 15px var(--font);
+	text-align: left;
+	cursor: pointer;
+}
+
+.nu_sopt.on {
+	background: var(--sel);
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.nu_sopt .nu_slab {
+	flex: 1;
+	min-width: 0;
+}
+
+.nu_sopt .nu_shnt {
+	font-size: 12px;
+	color: var(--fg2);
+	flex: 0 0 auto;
+}
+
+.nu_sopt .nu_sdir {
+	width: 18px;
+	flex: 0 0 auto;
+	text-align: right;
+	font-size: 15px;
+	font-weight: 600;
+}
+
+/* ---- the ... router's rows ---- */
+
+/* uppercased in css and not in the string table: the design draws these
+   caps, and a language whose casing rules differ should not have to ship a
+   shouting translation to get them. */
+.nu_mh {
+	margin: 0;
+	padding: 10px 12px 2px;
+	font: 700 11px var(--font);
+	letter-spacing: .12em;
+	text-transform: uppercase;
+	color: var(--fg2);
+}
+
+.nu_mrow {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	min-height: 50px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 14px;
+	background: none;
+	color: var(--fg);
+	font: 500 15px var(--font);
+	text-align: left;
+	cursor: pointer;
+}
+
+/* the real disabled attribute here, unlike the action bar's upload button:
+   these rows have nowhere to route yet, so there is nothing for a click to
+   say. the day a spec gives one a handler it stops being disabled. */
+.nu_mrow[disabled] {
+	opacity: .5;
+	cursor: default;
+}
+
+.nu_mrow .nu_mlab {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.nu_mrow .nu_mmeta {
+	flex: 0 0 auto;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--fg2);
+}
+
+.nu_mrow .nu_mgo {
+	flex: 0 0 auto;
+	font-size: 16px;
+	color: var(--chev);
+}
+
+/* ---- the settings screen ----
+
+   a tenant of sheet(), like the sort sheet and the ... router -- same veil,
+   same Escape, same "only one open" rule -- but NOT of their shell: this one
+   is a full screen over the list (README:199), not a card that rises off the
+   bottom edge, so it takes the machinery and none of the geometry. that is
+   why the shell rule above lists its tenants by id instead of by class.
+
+   at >= 64em it becomes a centered panel with the veil behind it (spec 0002
+   D5); see the wide band for the four properties that do it. */
+
+#nu_cfg {
+	position: fixed;
+	inset: 0;
+	z-index: 9;
+	display: flex;
+	flex-direction: column;
+	background: var(--bg);
+	transform: translateY(100%);
+	transition: transform .26s cubic-bezier(.2, .9, .3, 1);
+}
+
+#nu_cfg.on {
+	transform: translateY(0);
+}
+
+/* the screen's own header. three tracks and not two, with the third empty:
+   the title is centered in the VIEWPORT, so the back button needs a mirror
+   of its own width on the other side or the title sits 44px off. */
+#nu_cfgt {
+	flex: 0 0 auto;
+	display: grid;
+	grid-template-columns: 44px 1fr 44px;
+	align-items: center;
+	border-bottom: 1px solid var(--line);
+	padding-top: env(safe-area-inset-top);
+	background: var(--bg);
+}
+
+#nu_cfgx {
+	width: 44px;
+	height: 44px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: var(--accent);
+	font: 22px/1 var(--font);
+	cursor: pointer;
+}
+
+#nu_cfgx:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
+	border-radius: 8px;
+}
+
+#nu_cfgh {
+	margin: 0;
+	font-size: 17px;
+	font-weight: 600;
+	text-align: center;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_cfgb {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 16px 16px 40px;
+	padding-bottom: calc(40px + env(safe-area-inset-bottom));
+}
+
+.nu_cgh {
+	margin: 0;
+	padding: 0 6px 8px;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .1em;
+	text-transform: uppercase;
+	color: var(--fg2);
+}
+
+.nu_ccard {
+	background: var(--surface);
+	border-radius: 14px;
+	/* the rows' dividers run to the card's edge, so the corners have to
+	   clip them -- otherwise the last divider draws across the radius */
+	overflow: hidden;
+	margin-bottom: 18px;
+}
+
+.nu_ccard>*+* {
+	border-top: 1px solid var(--line-soft);
+}
+
+.nu_crow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	width: 100%;
+	min-height: 52px;
+	padding: 8px 14px;
+	background: none;
+	border: 0;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+}
+
+/* the toggle rows are <button> elements: the whole 52px row is the target,
+   not the 44px switch at the end of it. the non-toggle rows are <div>s
+   holding their own control, so they must not take the pressed fill. */
+button.nu_crow {
+	cursor: pointer;
+}
+
+button.nu_crow:active {
+	background: var(--hov);
+}
+
+button.nu_crow:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
+}
+
+.nu_clab {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.nu_clab .nu_cl {
+	font-size: 15px;
+	font-weight: 500;
+}
+
+.nu_clab .nu_cs {
+	font-size: 12px;
+	color: var(--fg2);
+}
+
+.nu_crow[disabled] {
+	opacity: .45;
+}
+
+/* ---- the settings controls (README:213-218) ---- */
+
+.nu_tgl {
+	flex: 0 0 auto;
+	width: 44px;
+	height: 26px;
+	padding: 2px;
+	border-radius: 13px;
+	background: var(--tgl-off);
+	transition: background .16s ease;
+	display: block;
+}
+
+.nu_tgl .nu_knob {
+	display: block;
+	width: 22px;
+	height: 22px;
+	border-radius: 11px;
+	background: #fff;
+	box-shadow: 0 1px 3px rgba(20, 20, 30, .25);
+	transition: transform .16s ease;
+}
+
+.nu_tgl.on {
+	background: var(--accent);
+}
+
+.nu_tgl.on .nu_knob {
+	transform: translateX(18px);
+}
+
+.nu_seg {
+	flex: 0 0 auto;
+	display: flex;
+	gap: 4px;
+	padding: 3px;
+	border-radius: 10px;
+	background: var(--fill);
+}
+
+.nu_copt {
+	border: 0;
+	padding: 5px 10px;
+	border-radius: 8px;
+	background: none;
+	color: var(--fg3);
+	font: 600 12px var(--font);
+	cursor: pointer;
+}
+
+.nu_copt.on {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.nu_copt:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
+}
+
+.nu_swz {
+	flex: 0 0 auto;
+	display: flex;
+	gap: 8px;
+}
+
+/* the swatch paints the hue it WRITES, through the same two formulas the
+   palette uses -- so what the user taps is what the UI becomes, in either
+   theme. the hue rides a data attribute rather than an inline style: nu is
+   servable under a Content-Security-Policy (the csp_ui volflag), and a
+   style attribute built into innerHTML is exactly what such a policy drops. */
+.nu_swa {
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border-radius: 13px;
+	border: 2px solid transparent;
+	background: oklch(0.55 0.13 var(--sw-h)) content-box;
+	cursor: pointer;
+}
+
+.nu_swa[data-v="300"] {
+	--sw-h: 300;
+}
+
+.nu_swa[data-v="250"] {
+	--sw-h: 250;
+}
+
+.nu_swa[data-v="160"] {
+	--sw-h: 160;
+}
+
+.nu_swa[data-v="60"] {
+	--sw-h: 60;
+}
+
+.nu_swa.on {
+	border-color: var(--fg);
+}
+
+.nu_swa:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-thm="light"]) .nu_swa {
+		background: oklch(0.72 0.12 var(--sw-h)) content-box;
+	}
+}
+
+:root[data-thm="dark"] .nu_swa {
+	background: oklch(0.72 0.12 var(--sw-h)) content-box;
+}
+
+.nu_csel {
+	flex: 0 0 auto;
+	max-width: 55%;
+	border: 0;
+	border-radius: 8px;
+	padding: 5px 8px;
+	background: var(--fill);
+	color: var(--fg);
+	font: 500 13px var(--font);
+	cursor: pointer;
+}
+
+.nu_csel:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
+}
+
+/* ---- the image viewer (README:224-233) ----
+
+   the one surface in nu whose palette is written in literals instead of
+   tokens, and that is a decision rather than an oversight: an image is
+   judged against what surrounds it, so this frame is the same near-black in
+   both themes. --bg and --surface are the page's ground and would make the
+   light theme lie about what the user is looking at.
+
+   it is not a tenant of sheet() either -- it opens over whatever is already
+   open, keeps its hands off the veil, and closes back onto it. */
+#nu_vwr {
+	position: fixed;
+	inset: 0;
+	/* above the sheets (9) and the right-click menu (10). the viewer is the
+	   topmost surface nu has: a sort sheet left standing underneath has to
+	   be covered by it, not share the screen with it. */
+	z-index: 12;
+	display: flex;
+	flex-direction: column;
+	background: #0f0f14;
+	color: #f2f2f6;
+	opacity: 0;
+	transition: opacity .2s cubic-bezier(.2, .9, .3, 1);
+}
+
+#nu_vwr.on {
+	opacity: 1;
+}
+
+#nu_vwt {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 12px;
+	/* the overlay covers the notch, so it owns the top inset the header
+	   below it normally would */
+	padding-top: calc(8px + env(safe-area-inset-top));
+}
+
+#nu_vwx {
+	min-width: 44px;
+	min-height: 44px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: #cfc6f0;
+	font: 500 15px var(--font);
+	text-align: left;
+	cursor: pointer;
+}
+
+#nu_vwh {
+	flex: 1;
+	min-width: 0;
+	text-align: center;
+}
+
+#nu_vwn {
+	font-size: 15px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_vwm {
+	margin-top: 2px;
+	font-size: 11px;
+	color: #8f8fa3;
+}
+
+#nu_vwc {
+	min-width: 44px;
+	text-align: right;
+	font-size: 12px;
+	color: #8f8fa3;
+}
+
+/* `min-height: 0` is what lets the middle actually shrink: a flex child
+   defaults to min-height:auto, and a tall image inside one pushes the
+   footer off the bottom of the screen instead of scaling down. */
+#nu_vwb {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px;
+}
+
+#nu_vwg {
+	max-width: 100%;
+	max-height: 100%;
+	border-radius: 6px;
+	/* the design's hatch, which is also what a transparent png is read
+	   against -- and what stands in while the original is still loading */
+	background: repeating-linear-gradient(135deg, #26262f 0 10px, #1e1e26 10px 20px);
+}
+
+#nu_vwf {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 0 16px 6px;
+	padding-bottom: calc(26px + env(safe-area-inset-bottom));
+}
+
+#nu_vwp,
+#nu_vwnx {
+	flex: 0 0 auto;
+	min-width: 56px;
+	min-height: 48px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: #cfc6f0;
+	font: 22px/1 var(--font);
+	cursor: pointer;
+}
+
+#nu_vwnx {
+	text-align: right;
+}
+
+#nu_vwa {
+	display: flex;
+	gap: 8px;
+	min-width: 0;
+}
+
+.nu_vact {
+	min-height: 44px;
+	padding: 0 18px;
+	border: 0;
+	border-radius: 14px;
+	background: #23232d;
+	color: #f2f2f6;
+	font: 500 14px var(--font);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+/* the ring is the viewer's own violet and not --ring: --ring is tuned
+   against a light page and disappears on #0f0f14 */
+#nu_vwx:focus-visible,
+#nu_vwp:focus-visible,
+#nu_vwnx:focus-visible,
+.nu_vact:focus-visible {
+	outline: 2px solid #cfc6f0;
+	outline-offset: 2px;
+	border-radius: 8px;
+}
+
+/* ---- folder tree ----
+
+   the widget only, and deliberately width-agnostic: the dock is styled
+   with #nu_tree in the wide band below, and 0001's bottom sheet will
+   mount the same markup at phone width. nothing here may assume either
+   container. */
+
+.nu_th {
+	margin: 0;
+	padding: 12px 10px 6px;
+	font: 600 11px var(--font);
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	color: var(--fg2);
+}
+
+.nu_tul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/* every level is indented by its own nesting, so the rule is one line and
+   the depth is whatever the tree says it is */
+.nu_tul .nu_tul {
+	padding-left: 13px;
+	border-left: 1px solid var(--line-soft);
+	margin-left: 9px;
+}
+
+.nu_tn {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.nu_tn > .nu_tul {
+	flex: 1 0 100%;
+}
+
+/* the chevron is the ONLY expander; it is a real button so it can be
+   tabbed to, and 20px wide so a finger has something to hit when the
+   sheet mounts this widget at phone width */
+.nu_tw {
+	flex: 0 0 auto;
+	width: 20px;
+	height: 26px;
+	border: 0;
+	padding: 0;
+	background: none;
+	color: var(--chev);
+	font: 15px var(--font);
+	line-height: 1;
+	cursor: pointer;
+	transform: rotate(0deg);
+	transition: transform .12s ease;
+}
+
+.nu_tw.on {
+	transform: rotate(90deg);
+	color: var(--fg3);
+}
+
+/* a dead node keeps the chevron's box so its name lines up with its
+   siblings, but has no control in it */
+.nu_tdead > .nu_tw {
+	cursor: default;
+}
+
+.nu_tl {
+	flex: 1;
+	min-width: 0;
+	padding: 4px 6px;
+	border-radius: 8px;
+	color: var(--fg3);
+	font: 13px var(--font);
+	text-decoration: none;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.nu_tcur > .nu_tl {
+	color: var(--accent);
+	font-weight: 700;
+}
+
+.nu_tdead > .nu_tl {
+	color: var(--fg4);
+	text-decoration: line-through;
+	cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion) {
+
+	.nu_tw {
+		transition: none;
+	}
+}
+
+/* ---- the tree sheet ----
+
+   the widget's OTHER container, and only the container: every node rule
+   above is shared with the dock and none of it is copied down here. what
+   belongs to the sheet is its box, the scroll inside it, and the touch
+   sizing -- a 26px row is a mouse's row, and this container is only ever
+   reached by a finger. */
+
+#nu_tsh {
+	max-height: 600px;
+}
+
+/* the sheet's header already says "Folders", so the widget's own heading
+   would be the same word twice, twelve pixels apart. the widget keeps it,
+   because the dock has no header of its own, and the container drops it. */
+#nu_tshb .nu_th {
+	display: none;
+}
+
+/* the full path, against the right edge of the header and truncated at
+   200px (README:163-164) */
+#nu_tshp {
+	flex: 0 1 auto;
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#nu_tshb .nu_tn {
+	min-height: 46px;
+}
+
+#nu_tshb .nu_tw {
+	width: 26px;
+	height: 46px;
+	font-size: 12px;
+}
+
+#nu_tshb .nu_tl {
+	padding: 8px;
+	border-radius: 10px;
+	font-size: 15px;
+	font-weight: 500;
+}
+
+/* on the LINK and not on the node: the node is the <li>, so an expanded
+   branch would tint its whole subtree with it */
+#nu_tshb .nu_tcur > .nu_tl {
+	background: var(--sel);
+}
+
+/* ---- context menu ---- */
+
+/* there is deliberately NO width query and no capability query on this
+   box: nu.js installs the contextmenu listener only under
+   (hover: hover) and (pointer: fine) and detaches it again when that stops
+   matching, so the menu cannot be summoned where it does not belong. a
+   css-only gate would hide the affordance while the listener kept eating
+   the right-click, which is the bug spec 0002 D2 exists to prevent. */
+#nu_ctx {
+	position: fixed;
+	z-index: 10;
+	min-width: 190px;
+	padding: 6px;
+	border-radius: 12px;
+	background: var(--surface);
+	border: 1px solid var(--line);
+	box-shadow: 0 10px 34px rgba(20, 20, 30, .22);
+}
+
+.nu_ctxb {
+	display: block;
+	width: 100%;
+	padding: 9px 12px;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: var(--fg);
+	font: 500 13px var(--font);
+	text-align: left;
+	cursor: pointer;
+}
+
+.nu_ctxb[disabled] {
+	color: var(--fg4);
+	cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.nu_ctxb:hover:not([disabled]) {
+		background: var(--hov);
+	}
+}
+
+.nu_ctxb:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -2px;
+}
+
+/* ---- the action bar ----
+
+   ONE component with two placements (spec 0002 D5): the fixed bar below
+   64em, and the #nu_tools slot in the status line at and above it. nu.js
+   renders the same buttons into whichever container the band calls for and
+   empties the other, so both placements style one set of classes and there
+   is no second bar to keep in sync.
+
+   which container is decided in JS, from CAP.wide, and the visibility rule
+   here keys on CONTENT and not on a width query. a media query would be a
+   second opinion about the same question, and the day the two disagreed it
+   would either paint an empty strip of blur across a 1440px window or hide
+   a bar that JS had just filled. */
+#nu_bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	/* above the sticky header (3), below the veil (8): a sheet's veil has
+	   to dim the bar, and the list has to scroll under it. */
+	z-index: 7;
+	display: flex;
+	gap: 8px;
+	/* the bar owns the safe-area inset, because it is the thing actually
+	   sitting on the home indicator */
+	padding: 8px 12px calc(22px + env(safe-area-inset-bottom));
+	background: var(--foot-bg);
+	-webkit-backdrop-filter: blur(12px);
+	backdrop-filter: blur(12px);
+	border-top: 1px solid var(--line);
+}
+
+#nu_bar:empty {
+	display: none;
+}
+
+.nu_act {
+	flex: 1;
+	min-height: 48px;
+	padding: 0 10px;
+	border: 0;
+	border-radius: 14px;
+	background: var(--fill);
+	color: var(--fg);
+	font: 500 14px var(--font);
+	cursor: pointer;
+}
+
+.nu_a_up {
+	flex: 1.4;
+	background: var(--accent);
+	color: var(--on-accent);
+	font: 600 15px var(--font);
+}
+
+.nu_a_more {
+	flex: 0 0 48px;
+	padding: 0;
+	font-size: 18px;
+}
+
+/* the selection slot set is three equal buttons, so it declares nothing
+   about its box at all -- .nu_act is already `flex: 1` and the navigation
+   set's two exceptions (.nu_a_up's 1.4, .nu_a_more's fixed 48px) name
+   their own keys and cannot reach these. only the destructive one is
+   coloured (README:141-142), and it is the one place --danger is spent. */
+.nu_a_rm {
+	background: var(--danger);
+	color: #fff;
+}
+
+/* aria-disabled and not :disabled -- a disabled button fires no click, and
+   this UI's one dead button (upload) exists precisely to be tapped and
+   answer with the classic UI. it has to look dead and stay reachable. */
+.nu_act[aria-disabled="true"] {
+	opacity: .55;
+}
+
+.nu_act:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+/* ---- footer ---- */
+
+/* the fixed bar covers the bottom of the page, and #nu_foot is what is
+   under it: #nu_foot is a sibling AFTER #nu_shell, so #nu_main's own
+   padding-bottom clears nothing at all. 93px is the bar's box -- 8 + 48 +
+   22 + 1px border -- plus the footer's own 14px of air; the inset is here
+   because the bar adds it to its own height. the wide band takes it back
+   off, where there is no fixed bar to clear. */
+#nu_foot {
+	padding: 14px 18px calc(93px + env(safe-area-inset-bottom));
+	font-size: 11px;
+	color: var(--fg2);
+	text-align: center;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* the middle band, 44em-64em: tablets and half-screen windows. the phone
+   design (no query at all) owns everything below; the wide layout owns
+   everything from 64em up, so this rule needs an upper edge -- an unbounded
+   760px cap would survive into a layout meant to be 100em wide.
+   bands are em, like the rest of web/ (ui.css:302, md.css:274). */
+@media (min-width: 44em) and (max-width: 63.99em) {
+	#nu_top,
+	#nu_main,
+	#nu_foot {
+		max-width: 760px;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	#nu_sheet,
+	#nu_menu,
+	#nu_tsh {
+		left: 50%;
+		transform: translate(-50%, 110%);
+		width: 460px;
+		border-radius: 22px;
+		bottom: 40px;
+	}
+
+	#nu_sheet.on,
+	#nu_menu.on,
+	#nu_tsh.on {
+		transform: translate(-50%, 0);
+	}
+}
+
+/* the wide band, 64em up: the header and the footer span the window (no cap
+   at all up here), the content column caps at 100em and sits flush left, and
+   the tree docks outside that cap. #nu_shell is an unstyled block below this
+   query, so the middle band's centering of #nu_main is untouched. */
+@media (min-width: 64em) {
+
+	/* the wide band defaults to the compact row -- the handoff's metric at
+	   `copyparty mobile.dc.html:496`. 44px touch targets are a finger
+	   constraint; a mouse just pays for them in rows-per-screen.
+	   :root[data-dens="touch"] above overrides this on specificity. */
+	:root {
+		--row-pad: 9px 16px;
+	}
+
+	/* ---- the header, two rows instead of four ----
+
+	   the phone stacks #nu_nav, #nu_srch, #nu_chips and #nu_stat as four
+	   full-bleed bands, which at 1440px is four short lines of chrome above
+	   the first file. same dom, same ids, same source order -- a two-column
+	   grid pairs them off instead: nav beside the search box on row one,
+	   the filter chips beside the status line on row two. nothing is moved
+	   in nu.html and nothing is hidden.
+
+	   the chips stay at width on purpose (a type column answers *what*, the
+	   chips answer *only these*), and the status line keeps #nu_sort at
+	   every width, so the sort sheet remains a door even here where the
+	   column header is a second one.
+
+	   the children's own inline padding differs per band (10/16/16/18px) --
+	   fine when each is its own full-bleed row, wrong the moment two of
+	   them share a row -- so the grid takes the inline padding and the
+	   children give theirs up. #nu_top's padding-top stays the
+	   safe-area-inset longhand it already is. */
+	#nu_top {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(14em, 26em);
+		align-items: center;
+		column-gap: 18px;
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+
+	#nu_nav {
+		grid-row: 1;
+		grid-column: 1;
+		padding: 0;
+	}
+
+	/* the folder name is centered between a back link and an escape hatch
+	   on a phone, where the row is 390px wide and the h1 is the row. given
+	   a 1fr track next to a search box it just floats; put it where a path
+	   belongs, against its own back link. */
+	#nu_here {
+		flex: 0 1 auto;
+		text-align: left;
+	}
+
+	/* no longer full-bleed: the search box is the second column, which is
+	   what stops a 1440px window from drawing a 1400px-wide pill. */
+	#nu_srch {
+		grid-row: 1;
+		grid-column: 2;
+		margin: 0;
+	}
+
+	#nu_chips {
+		grid-row: 2;
+		grid-column: 1;
+		padding: 8px 0;
+	}
+
+	/* space-between is kept from the base rule: the count sits under the
+	   search box's left edge and #nu_acts under its right. */
+	#nu_stat {
+		grid-row: 2;
+		grid-column: 2;
+		padding: 8px 0;
+	}
+
+	/* the fifth child, and the reason it needs a rule at all: the four
+	   above claim their cells by name, so an unplaced fifth would be
+	   auto-flowed into whichever hole was left -- row 1 column 1, on top
+	   of the nav bar. it takes a row of its own, full width, and only
+	   while it has something to say (js keeps `hidden` on it otherwise). */
+	#nu_qmsg {
+		grid-row: 3;
+		grid-column: 1 / -1;
+		margin: 0;
+		padding: 0 0 8px;
+	}
+
+	/* ---- the wide placement of 0001's action bar ----
+
+	   the contract, spec 0002 D5: the action bar is ONE component with two
+	   placements -- this slot at >= 64em, and the fixed bottom bar below
+	   it -- rendered by 0001 card 1 from one set of i18n keys. NOT a
+	   second bar. a placement-specific string table is the failure this
+	   declares against: the keys are placement-blind and the component is
+	   handed a container, not a width.
+
+	   the slot lives in the status line beside #nu_sort rather than in a
+	   strip of its own because the status line is the header row that
+	   already ends in controls; where the bar finally sits inside the wide
+	   header is 0001 card 1's call (spec 0002 §Open questions) with this
+	   as its constraint, and moving it later moves one selector.
+
+	   deliberately lower specificity than #nu_tools:empty above: an empty
+	   slot is display:none at every width, this one included, so nothing
+	   here can make it wide before it has content. */
+	#nu_tools {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	/* the same buttons, compact: 48px is a finger metric and this is a
+	   12px row of chrome beside a 12px sort button. only the box changes --
+	   no colour, no label and no handler is re-declared here. */
+	#nu_tools .nu_act {
+		flex: 0 0 auto;
+		min-height: 28px;
+		padding: 0 10px;
+		border-radius: 8px;
+		font: 500 12px var(--font);
+	}
+
+	#nu_tools .nu_a_up {
+		font-weight: 600;
+	}
+
+	#nu_tools .nu_a_more {
+		padding: 0 8px;
+		font-size: 14px;
+	}
+
+	/* no fixed bar up here, so the footer has nothing to clear */
+	#nu_foot {
+		padding-bottom: calc(14px + env(safe-area-inset-bottom));
+	}
+
+	#nu_shell {
+		display: grid;
+		grid-template-columns: minmax(0, 100em);
+		justify-content: start;
+	}
+
+	/* the dock's column is opt-in, never the default: the attribute is
+	   written when the dock is actually rendered. a 16em track declared
+	   unconditionally would leave a permanent empty gutter on every
+	   --ui-notree deployment, and on every window that widens before the
+	   first ?tree= answers -- the dock is allowed to be absent, the hole
+	   is not. */
+	#nu_shell[data-tree="1"] {
+		grid-template-columns: 16em minmax(0, 100em);
+	}
+
+	#nu_tree {
+		padding: 0 6px 24px 12px;
+		border-right: 1px solid var(--line-soft);
+		position: sticky;
+		top: var(--head-h);
+		/* a stretched grid item is exactly as tall as its row and has no
+		   travel to stick through, same trap as the header on <body> */
+		align-self: start;
+		max-height: calc(100vh - var(--head-h));
+		overflow-y: auto;
+	}
+
+	/* the tree sheet is narrow-only, and this says so in css as well as in
+	   js: up here the dock is the container, and a sheet would be a second
+	   door to the same widget in the same window. nu.js disables its door
+	   and closes it on the way up -- this is the belt to that pair of
+	   braces, so a sheet left open by any path cannot paint here. */
+	#nu_tsh {
+		display: none;
+	}
+
+	/* the sort sheet is a modal, and it is centered in both non-phone bands */
+	#nu_sheet,
+	#nu_menu {
+		left: 50%;
+		transform: translate(-50%, 110%);
+		width: 460px;
+		border-radius: 22px;
+		bottom: 40px;
+	}
+
+	#nu_sheet.on,
+	#nu_menu.on {
+		transform: translate(-50%, 0);
+	}
+
+	/* the settings screen stops being a screen up here: spec 0002 D5 says a
+	   full-bleed sheet at 1440px is a phone layout wearing a desktop, so the
+	   SAME markup becomes a centered panel with the veil showing around it.
+	   `inset: 0` is what has to be undone -- the panel is sized by its
+	   content between two insets, and #nu_cfgb keeps the scroll. */
+	#nu_cfg {
+		inset: 40px auto 40px 50%;
+		width: min(560px, calc(100vw - 80px));
+		max-height: calc(100vh - 80px);
+		border-radius: 18px;
+		overflow: hidden;
+		box-shadow: 0 24px 60px rgba(20, 20, 30, .22);
+		transform: translate(-50%, 110%);
+	}
+
+	#nu_cfg.on {
+		transform: translate(-50%, 0);
+	}
+
+	/* the panel is its own surface now, not the page's background */
+	#nu_cfg,
+	#nu_cfgt {
+		background: var(--surface);
+	}
+
+	#nu_cfgt {
+		padding-top: 0;
+	}
+
+	/* the viewer stops being a full-bleed phone overlay (spec 0002 D5). it
+	   is still a modal over the whole window -- an image being looked at
+	   wants the screen dark around it at every width -- but what sits
+	   inside it changes: the image is BOUNDED rather than edge to edge, and
+	   the three actions sit in a bar of their own instead of floating on
+	   the backdrop. prev/next stay where they are and gain the arrow keys,
+	   which nu.js claims in the one keydown listener.
+
+	   there is no safe-area inset to pay up here, so both ends give it
+	   back: env() answers 0 on a desktop anyway, and paying it twice in
+	   calc() is how a phone metric survives into a layout that never had a
+	   notch. */
+	#nu_vwt {
+		padding-top: 8px;
+	}
+
+	#nu_vwb {
+		padding: 20px 40px;
+	}
+
+	#nu_vwg {
+		max-width: min(100%, 72em);
+		box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+	}
+
+	#nu_vwf {
+		width: min(72em, calc(100vw - 80px));
+		margin: 0 auto 24px;
+		padding: 8px 12px;
+		border-radius: 16px;
+		background: #17171d;
+	}
+
+	.nu_ccard {
+		background: var(--bg);
+	}
+
+	/* ---- the row becomes the grid ----
+
+	   the grid goes on .nu_row, not on #nu_list: rows are <a> elements
+	   carrying the background, the bottom border and (soon) hover and
+	   focus, and display:contents on them would destroy all four. so every
+	   row is its own grid and #nu_list stays a plain block -- which is
+	   also why .nu_empty needs no placement, it is not a grid item.
+
+	   the price is that columns line up across rows only if no track is
+	   content-sized: NO `auto` ANYWHERE. minmax(0, 1fr) for the name,
+	   fixed em for the rest, and the whole declaration lives in --nu-cols
+	   so the column header has one definition to copy rather than a second
+	   truth. --nu-cols is not the whole geometry either: .nu_row's
+	   `gap: 14px` and its --row-pad inline padding move every track, so
+	   anything aligning to these columns has to copy those two as well. */
+	:root {
+		--nu-cols: [ck] 30px [chip] 42px [name] minmax(0, 1fr) [sz] 7em [dt] 10em [go] 1em;
+	}
+
+	.nu_row {
+		display: grid;
+		grid-template-columns: var(--nu-cols);
+	}
+
+	/* ---- the column header ----
+
+	   every row is its own grid, so nothing lines up by being in the same
+	   grid -- it lines up by declaring the same geometry. that is three
+	   things, not one: the tracks (--nu-cols), the gap, and the inline
+	   padding. a header that copies only the tracks starts 16px off at the
+	   left edge and drifts a further 14px per column.
+	   --row-pad is read with .nu_row's own fallback, so the density
+	   opt-out moves the header and the rows together. */
+	#nu_head {
+		display: grid;
+		grid-template-columns: var(--nu-cols);
+		gap: 14px;
+		padding: var(--row-pad, 14px 16px);
+		border-bottom: 1px solid var(--line);
+	}
+
+	/* 12px / --fg2 is what .nu_sub hands the cells below: the header is
+	   the same type as the column it labels, not a heavier one. */
+	.nu_hcol {
+		border: 0;
+		background: none;
+		padding: 0;
+		font: 500 12px var(--font);
+		color: var(--fg2);
+		text-align: left;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		cursor: pointer;
+	}
+
+	.nu_hcol:hover {
+		color: var(--fg);
+	}
+
+	/* placed by name, exactly like the row's cells -- the header has no
+	   chip and no chevron, and SORTS' `n` gets no button at all, so its
+	   dom order is free and only the names decide where a label sits. */
+	.nu_h_name {
+		grid-column: name;
+	}
+
+	.nu_h_sz {
+		grid-column: sz;
+	}
+
+	.nu_h_ty {
+		grid-column: ty;
+	}
+
+	.nu_h_dt {
+		grid-column: dt;
+	}
+
+	/* two levels, not one. .nu_meat wraps the name and the meta line, and
+	   .nu_sub wraps the cells inside that -- flatten only the outer one and
+	   all three cells land in a single track. */
+	.nu_meat,
+	.nu_sub {
+		display: contents;
+	}
+
+	/* display:contents drops the box, not the selector: leave the meta
+	   line's separator standing and every column but the first renders
+	   "· 1.2 GB" inside its own track. */
+	.nu_sub > * + *::before {
+		content: none;
+	}
+
+	.nu_n {
+		display: none;
+	}
+
+	.nu_w {
+		display: inline;
+	}
+
+	/* every cell placed by name, never by order: a file has no .nu_go, an
+	   unindexed folder has no size cell and a folder has no type cell, so
+	   ordinal placement breaks on the second row it meets. */
+
+	/* the checkbox is a COLUMN up here and never a hover reveal (spec 0002
+	   D2): `ck` is the first named line in --nu-cols, in both of that
+	   variable's declarations, so #nu_head reads the same track set and
+	   every column beside it stays where the header says it is. the
+	   narrow band's width animation and its gap-eating margin go with it
+	   -- there is nothing to animate when the column is always there, and
+	   the back row's empty cell simply holds the track open. */
+	.nu_ck {
+		grid-column: ck;
+		width: auto;
+		margin-right: 0;
+		transition: none;
+	}
+
+	.nu_type {
+		grid-column: chip;
+	}
+
+	.nu_name {
+		grid-column: name;
+	}
+
+	.nu_c_sz {
+		grid-column: sz;
+	}
+
+	.nu_c_dt {
+		grid-column: dt;
+	}
+
+	.nu_c_ty {
+		grid-column: ty;
+	}
+
+	.nu_go {
+		grid-column: go;
+	}
+
+	/* the back row has no fields; its name takes the whole span up to the
+	   chevron rather than leaving three empty columns behind it. */
+	.nu_back .nu_name {
+		grid-column: name / go;
+	}
+
+	/* ---- the wide tile ----
+
+	   spec 0002 D5: grid view stays a second renderer and "simply gets a
+	   wide tile size". 114px is a phone tile -- three of them in a 1440px
+	   window is the layout that spec exists to refuse. same markup, same
+	   wrap, one larger box: 160 + 10 of gap tiles the content column eight
+	   across at 1440px and keeps filling it up to the 100em cap, because
+	   the count is still the wrap's business and not a declared number.
+
+	   the container loses the fixed bar's 120px too -- up here the bar is
+	   in the status line and there is nothing at the bottom to clear. */
+	:root[data-view="grid"] #nu_list {
+		gap: 10px;
+		padding: 12px 16px 32px;
+	}
+
+	.nu_tile {
+		width: 160px;
+		height: 160px;
+		border-radius: 14px;
+	}
+
+	.nu_tb {
+		font-size: 10px;
+	}
+
+	.nu_tn {
+		padding: 7px 9px;
+		font-size: 12px;
+	}
+}
+
+/* the full column set. below this the type column sheds -- see .nu_c_ty
+   above -- so `ty` is the only line that is not in every band, and the only
+   rule naming it is on a cell that is display:none wherever the line is
+   missing. */
+@media (min-width: 80em) {
+	:root {
+		--nu-cols: [ck] 30px [chip] 42px [name] minmax(0, 1fr) [sz] 7em [ty] 7em [dt] 10em [go] 1em;
 	}
 }

@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8">
 	<title>{{ title }}</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<meta name="theme-color" content="#{{ tcolor }}">
 	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/w/nu.css?_={{ ts }}">
 {{ html_head }}
@@ -15,38 +15,272 @@
 
 <body>
 	<header id="nu_top">
-		<nav id="nu_crumbs">
-			{%- for n in vpnodes %}
-			<a href="{{ r }}/{{ n[0] }}">{{ n[1] }}</a>
-			{%- endfor %}
-		</nav>
-		<div id="nu_tools">
-			<button id="nu_pin" type="button" title="make default">☆</button>
-			<button id="nu_thm" type="button" title="theme">◐</button>
-			<a id="nu_old" href="?nu0" rel="nofollow" title="open this folder in the classic UI">classic UI</a>
+		<div id="nu_nav">
+			{%- if vpnodes|length > 1 %}
+			<a id="nu_up" href="{{ r }}/{{ vpnodes[-2][0] }}"><span class="nu_chev">&lsaquo;</span><span id="nu_upn">{{ vpnodes[-2][1] }}</span></a>
+			{%- else %}
+			<a id="nu_up" class="nu_hidden" href="#"><span class="nu_chev">&lsaquo;</span><span id="nu_upn"></span></a>
+			{%- endif %}
+			<!-- the nav bar's right slot holds Selecionar / Concluir, and
+			     nu.js appends #nu_selb here at boot rather than the markup
+			     shipping it: it is a door into a MODE, and the two words it
+			     can say come out of the same t() table the mode's own
+			     sel_fx() reads, so the label and the state cannot drift.
+			     the `classic` escape hatch that used to sit here is now a
+			     row in the ... router, which is where every surface nu has
+			     not built yet is reached from (spec 0001 D1). -->
+			<!-- the folder title is also the door to the tree sheet: the
+			     design draws the name with a `▾` after it and opens the
+			     sheet on tap (README:94-95). the h1 keeps the type and the
+			     centering, and the button inside it is what carries the hit
+			     area, the ellipsis and the caret -- an <h1> is not a
+			     control, and a click handler on one is a control nothing
+			     can tab to.
+
+			     nu.js disables it wherever the sheet is not the container:
+			     at >= 64em, where the dock is on screen, and on
+			     --ui-notree, where there is no widget at all. the caret
+			     follows that same attribute in nu.css, so the affordance
+			     and the behaviour cannot drift apart. -->
+			<h1 id="nu_here"><button id="nu_hereb" type="button" aria-haspopup="dialog"><span id="nu_heren">{{ vpnodes[-1][1] }}</span><span id="nu_hered" aria-hidden="true">&#9662;</span></button></h1>
+		</div>
+
+		<div id="nu_srch">
+			<span class="nu_ico">&#8981;</span>
+			<!-- jinja cannot see `Ls`, so every string rendered in this file
+			     -- this placeholder, the sort sheet's heading and hint, and the
+			     `classic` link -- carries the english here and is overwritten
+			     with t() when nu.js boots. -->
+			<input id="nu_q" type="search" autocomplete="off" autocapitalize="off"
+				spellcheck="false" placeholder="Search in this folder">
+		</div>
+
+		<div id="nu_chips"></div>
+
+		<div id="nu_stat">
+			<span id="nu_count"></span>
+			<!-- #nu_tools is the wide placement of 0001 card 1's action
+			     bar: spec 0002 D5 says that bar is ONE component with two
+			     placements -- rendered into this slot at >= 64em and into
+			     the fixed bottom bar below it -- and NOT a second bar with
+			     its own strings and its own i18n keys. empty and inert
+			     until that card lands; #nu_tools:empty in nu.css keeps it
+			     out of #nu_acts' flex gap meanwhile, so it costs zero
+			     pixels at every width. no whitespace inside the span, or
+			     :empty stops matching. -->
+			<!-- #nu_view is the design's SECOND status-line control
+			     (README:109-111): the sort criterion and then Grade/Lista,
+			     both 12px/500 in accent. it is markup and not a rendered
+			     node for the same reason #nu_sort is -- render_stat only
+			     ever writes its text, so the debounced draw cycle cannot
+			     destroy the button under a finger already on it. its label
+			     is filled by nu.js at the first draw. -->
+			<span id="nu_acts"><span id="nu_tools"></span><button id="nu_sort" type="button"></button><button id="nu_view" type="button"></button></span>
 		</div>
 	</header>
 
-	<main id="nu_main">
-		<div id="nu_list" aria-live="polite"></div>
-	</main>
+	<!-- the wide-band shell: the tree dock and the list, side by side.
+	     #nu_top and #nu_foot stay direct children of <body> on purpose --
+	     making <body> the grid would give the sticky header a grid area
+	     exactly its own height, and no travel to stick through. -->
+	<div id="nu_shell">
+		<nav id="nu_tree" hidden></nav>
+
+		<main id="nu_main">
+			<!-- the column header is a sibling of #nu_list, never a child:
+			     #nu_list is aria-live="polite", so a header living inside
+			     it would be re-announced on every sort and on every
+			     keystroke in the filter. it carries no `hidden` attribute
+			     either -- the bands own its visibility, in nu.css. -->
+			<div id="nu_head"></div>
+			<div id="nu_list" aria-live="polite"></div>
+		</main>
+	</div>
+
+	<div id="nu_veil" hidden></div>
+
+	<!-- the right-click menu. empty and hidden until nu.js renders it from
+	     CTX, and nu.js only ever installs the listener under
+	     (hover: hover) and (pointer: fine) -- a css-only gate would hide
+	     this box while the listener kept swallowing the right-click. -->
+	<div id="nu_ctx" hidden role="menu"></div>
+
+	<section id="nu_sheet" hidden aria-modal="true" role="dialog">
+		<div class="nu_grip"></div>
+		<div class="nu_shead">
+			<h2 id="nu_sh2">Sort by</h2>
+			<span id="nu_shint" class="nu_hint">tap again to reverse</span>
+		</div>
+		<div id="nu_sopts"></div>
+	</section>
+
+	<!-- the ... router. same shell as the sort sheet, a second tenant of the
+	     same sheet() and the same veil; empty and hidden until nu.js renders
+	     it from MENU. spec 0001 D1: this is not a list of four items, it is
+	     the only door nu will ever have for the surfaces the design never
+	     drew, so its rows are declared in one table and a later spec adds a
+	     row rather than redesigning the sheet. -->
+	<section id="nu_menu" hidden aria-modal="true" role="dialog">
+		<div class="nu_grip"></div>
+		<div id="nu_mopts"></div>
+	</section>
+
+	<!-- the folder-tree sheet: the narrow band's container for the same
+	     widget the dock holds at >= 64em, and a fourth tenant of sheet().
+	     the widget itself is 0002's and is not copied here -- nu.js renders
+	     it into #nu_tshb with the very same render_tree() the dock uses, so
+	     an expanded branch and a marked current folder are one implementation
+	     and not two.
+
+	     it is narrow-only, and that gate is in JS (CAP.wide) rather than in
+	     the markup: up there the dock is already showing this widget, and a
+	     sheet would be a second door to it in the same window.
+
+	     the header is the design's (README:162-164): "Folders" on the left,
+	     the full path on the right, truncated. english here and overwritten
+	     with t() at boot, like every other string nu.html carries. -->
+	<section id="nu_tsh" hidden aria-modal="true" role="dialog" aria-labelledby="nu_tshh">
+		<div class="nu_grip"></div>
+		<div class="nu_shead">
+			<h2 id="nu_tshh">Folders</h2>
+			<span id="nu_tshp" class="nu_hint"></span>
+		</div>
+		<nav id="nu_tshb"></nav>
+	</section>
+
+	<!-- the settings screen. a third tenant of sheet() -- one veil, one
+	     Escape, one "only ever one open" rule -- but not of the two sheets'
+	     shell: this one is a full screen over the list below 64em and a
+	     centered panel above it, so it takes the machinery and none of the
+	     geometry (nu.css).
+
+	     the header is markup and the body is not: the title and the back
+	     button are two fixed nodes, and rewriting them on every flip of a
+	     toggle would destroy the control the user is currently pressing --
+	     the same rule #nu_head lives by. only #nu_cfgb is re-rendered.
+
+	     the strings here are english for the same reason as everywhere else
+	     in this file: jinja cannot see `Ls`, so nu.js overwrites them with
+	     t() at boot. -->
+	<section id="nu_cfg" hidden aria-modal="true" role="dialog" aria-labelledby="nu_cfgh">
+		<header id="nu_cfgt">
+			<button id="nu_cfgx" type="button" aria-label="Back">&lsaquo;</button>
+			<h2 id="nu_cfgh">Settings</h2>
+			<!-- the third grid track, empty on purpose: it mirrors the back
+			     button so the title is centered in the viewport and not 44px
+			     off it. -->
+			<span></span>
+		</header>
+		<div id="nu_cfgb"></div>
+	</section>
+
+	<!-- the image viewer (README:224-233), and the one surface here that is
+	     NOT a tenant of sheet(). sheet() owns one veil and the rule that at
+	     most one of its tenants is open; the viewer's contract is the
+	     opposite one -- it opens OVER whatever is already open and hands it
+	     back untouched when it closes, which is why it carries its own
+	     z-index and its own Escape branch in nu.js's one keydown listener.
+
+	     the header's three nodes and the two arrows are markup and nu.js
+	     only ever writes their text -- the rule #nu_sort and #nu_cfgt live
+	     by: a control must never be re-rendered under a finger already on
+	     it. only #nu_vwa is rendered, because its three buttons are gated
+	     on the volume's permissions.
+
+	     the <img> ships with no src at all: an `src=""` is a request for
+	     the current page in more than one browser, and nu.js drops the
+	     attribute again on the way out rather than blanking it.
+
+	     english here and overwritten with t() at boot, like every other
+	     string this file carries. -->
+	<section id="nu_vwr" hidden aria-modal="true" role="dialog" aria-labelledby="nu_vwn">
+		<header id="nu_vwt">
+			<button id="nu_vwx" type="button">Close</button>
+			<div id="nu_vwh">
+				<div id="nu_vwn"></div>
+				<div id="nu_vwm"></div>
+			</div>
+			<span id="nu_vwc"></span>
+		</header>
+		<!-- alt is empty on purpose: the file name is already on screen as
+		     text two lines above, and a screen reader must not read it
+		     twice -- the same reason a grid tile's thumbnail carries none. -->
+		<div id="nu_vwb"><img id="nu_vwg" alt=""></div>
+		<footer id="nu_vwf">
+			<button id="nu_vwp" type="button" aria-label="Previous image">&lsaquo;</button>
+			<span id="nu_vwa"></span>
+			<button id="nu_vwnx" type="button" aria-label="Next image">&rsaquo;</button>
+		</footer>
+	</section>
+
+	<!-- `Baixar`'s transport, and the reason it is a form and not an XHR:
+	     an xhr would pull the archive into memory and hand the user nothing.
+	     this is the classic UI's own shape (browser.js:8891-8919) --
+	     multipart POST at the folder we are standing in, `act=zip` plus the
+	     selected basenames newline-separated in `files`, opened in a new tab
+	     so the listing behind it survives. handle_zip_post unquotep()s each
+	     line (httpcli.py:3125-3148), so the names go on the wire exactly as
+	     the listing spelled them and a space needs no special case.
+
+	     it lives in the markup rather than being built per click because nu
+	     is servable under a Content-Security-Policy, and a form assembled
+	     from an innerHTML string is what such a policy exists to distrust --
+	     the same reason the grid's onerror is a property. nu.js only ever
+	     writes its `action` and the textarea's value. -->
+	<form id="nu_zip" method="post" enctype="multipart/form-data" target="_blank" hidden>
+		<input type="hidden" name="act" value="zip">
+		<textarea id="nu_zipf" name="files"></textarea>
+	</form>
 
 	<footer id="nu_foot">
 		<span id="nu_srv">{{ srv_info }}</span>
-		<span id="nu_note"></span>
 	</footer>
 
+	<!-- the action bar's NARROW placement, and the reason it is empty here:
+	     the bar is ONE component with two containers (spec 0002 D5) and nu.js
+	     renders it into whichever one the band calls for -- this below 64em,
+	     #nu_tools in the status line at and above it -- emptying the other.
+	     so, like #nu_tools, this is styled on :empty: an empty fixed bar must
+	     cost no strip of blur across the bottom of a 1440px window. no
+	     whitespace inside it, or :empty stops matching.
+
+	     it is a sibling AFTER #nu_foot on purpose: what a bar fixed to the
+	     bottom covers is the footer, so the footer is what carries the
+	     clearance for it. -->
+	<div id="nu_bar"></div>
+
 	<script nonce="{{ js_nonce }}">
-		var SR = "{{ r }}",
+		// the i18n dict the tl tag below fills in. it is declared HERE and not
+		// in nu.js because the tag has to run between the two, and it is not
+		// taken from util.js (which is where the classic UI's copy lives,
+		// util.js:310-311) because nu does not load util.js at all.
+		var Ls = {},
+			SR = "{{ r }}",
 			TS = "{{ ts }}",
+			// the admin's ui_* switches and the server's capabilities.
+			// raw, never |tojson: vn.js_htm is already a json *string*
+			// (json_hesc(json.dumps(...)) in authsrv.py), which is why
+			// browser.html, md.html and mde.html all interpolate cgv1
+			// bare too. encoding it twice hands nu a String, and every
+			// capability gate then reads undefined.
+			srvcfg = {{ cgv1 }},
 			lang = "{{ lang }}",
 			dtheme = "{{ dtheme }}",
 			have_tags_idx = {{ have_tags_idx }},
 			taglist = {{ taglist|tojson }},
 			perms = {{ cgv.perms|tojson }},
 			acct = {{ cgv.acct|tojson }},
+			cfg = {{ cfg|tojson }},
+			vpnodes = {{ vpnodes|tojson }},
 			ls0 = {{ ls0|tojson }};
 	</script>
+	<!-- guarded on eng, unlike browser.html:155: there is no web/tl/eng.js
+	     (copyparty/__init__.py lists chi..vie) and --lang defaults to eng, so
+	     an unguarded tag is a 404 on every default install. nu.js's own
+	     Ls.eng is the english table, and t() falls back to it per key. -->
+	{%- if lang != "eng" %}
+	<script nonce="{{ js_nonce }}" src="{{ r }}/.cpr/w/tl/{{ lang }}.js?_={{ ts }}"></script>
+	{%- endif %}
 	<script nonce="{{ js_nonce }}" src="{{ r }}/.cpr/w/nu.js?_={{ ts }}"></script>
 	{%- if js %}
 	<script nonce="{{ js_nonce }}" src="{{ js }}_={{ ts }}"></script>
