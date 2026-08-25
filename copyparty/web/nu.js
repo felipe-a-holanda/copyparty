@@ -4325,7 +4325,75 @@ function mount_upl() {
 		return;
 
 	upl_up = true;
-	ebi("nu_uplb").innerHTML = upl_htm() + upl_sw_htm();
+
+	// the `act` class is not decoration and not layout. QS('#op_up2k.act')
+	// at up2k.js:3491 is the ONLY thing on the page that calls goto_up2k()
+	// -> up2k.init_deps() (:24), which is what imports the main-thread
+	// hasher fallback (:846). without the class the panel still works
+	// wherever crypto.subtle is available -- got_deps() short-circuits at
+	// :835 -- and silently loses its fallback everywhere else, over plain
+	// http, on exactly the browsers that tier exists for. :3335 writes to
+	// #op_up2k unguarded as well.
+	ebi("nu_uplb").innerHTML =
+		'<div id="op_up2k" class="act">\n' +
+		'<div id="u2err"></div>\n' +
+		upl_htm() +
+		'</div>\n' +
+		upl_sw_htm();
+
+	mount_furn();
+}
+
+// the four things up2k.js reaches for that are NOT inside the panel, and
+// cannot be: the drop overlay covers the window, and the tab bar and #repl
+// are the classic UI's page chrome.
+//
+// they go on <body>, not in the sheet, because #drops is a full-window
+// overlay and a sheet is a box -- a drop target nested in a hidden dialog
+// is a drop target that never sees a drag.
+//
+// nothing here is hidden from JS: the display:none belongs in nu.css (a
+// later card), because #drops is toggled by up2k.js through a `vis` CLASS
+// (up2k.js:1143 and on), and an inline style would win over that class and
+// leave the overlay invisible for good. what keeps these nodes off a
+// listing nobody asked to upload from is that mount_upl runs on the
+// sheet's first open and not at boot.
+function mount_furn() {
+	// drag & drop is not a later commit: the nodes exist before the panel
+	// initializes or nothing does -- ebi('up_dz'), ebi('srch_dz') and
+	// ebi('drops') are dereferenced at the top level of up2k_init
+	// (up2k.js:1143, :1150). the <span> inside each .dropdesc is contract
+	// too: the first dragenter does up.querySelector('span').textContent
+	// with no guard (:1050, :1059), so an empty <div id="up_zd"> passes an
+	// id sweep and throws on the first drag -- which is precisely the
+	// gesture 0002 deferred to this spec. shape copied from
+	// browser.js:963-968.
+	var o = document.createElement("div");
+	o.innerHTML = (
+		'<div id="drops">\n' +
+		'	<div class="dropdesc" id="up_zd"><div>🚀 ' + L.udt_up + '<br /><span></span><div>🚀<b>' + L.udt_up + '</b></div><div><b>' + L.udt_up + '</b>🚀</div></div></div>\n' +
+		'	<div class="dropdesc" id="srch_zd"><div>🔎 ' + L.udt_srch + '<br /><span></span><div>🔎<b>' + L.udt_srch + '</b></div><div><b>' + L.udt_srch + '</b>🔎</div></div></div>\n' +
+		'	<div class="dropzone" id="up_dz" v="up_zd"></div>\n' +
+		'	<div class="dropzone" id="srch_dz" v="srch_zd"></div>\n' +
+		'</div>' +
+
+		// the tab bar nu never shows, and it earns its place twice. Donut
+		// resolves QS('#ops a[data-dest="up2k"]') with no guard
+		// (up2k.js:638-640) and stores its textContent before overwriting
+		// the anchor with the donut svg -- so the anchor needs text, and
+		// the anchor is what keeps Donut.do's progress callback firing
+		// (:687, :698-699), which is the feed nu's own progress line reads.
+		// onresize also parses getComputedStyle(ebi('ops'))['font-size']
+		// (:3064-3066), which resolves fine on a display:none element.
+		// the anchor is a DIRECT child because goto() matches '#ops>a'.
+		'<div id="ops"><a href="#" data-dest="up2k">⬆</a></div>' +
+
+		// read for .offsetTop at up2k.js:396 and :1963, both unguarded
+		'<a href="#" id="repl">π</a>'
+	);
+
+	while (o.firstChild)
+		document.body.appendChild(o.firstChild);
 }
 
 // the panel, in the nesting browser.js:868-947 uses, and the nesting is
