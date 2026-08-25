@@ -770,7 +770,14 @@ var ST = {
 	// wintitle() with no argument at all when the queue drains
 	// (up2k.js:691), and that is the only "is anything uploading" flag
 	// there is. written by the shim's wintitle, below.
-	upl: null
+	upl: null,
+	// the listing the status line is currently describing, cached by draw()
+	// on its way past render_stat. it is what lets ANYTHING else repaint
+	// that line -- the upload progress below is the first caller -- without
+	// re-running filtered() and without inventing a second idea of what is
+	// on screen. null until the first draw, and `[]` is a perfectly good
+	// answer for a caller arriving before it.
+	shown: null
 };
 
 // -- mode plumbing -----------------------------------------------------
@@ -2075,7 +2082,55 @@ function render_chips() {
 }
 
 function render_stat(shown) {
-	var srt = ebi("nu_sort"), vw = ebi("nu_view");
+	var srt = ebi("nu_sort"), vw = ebi("nu_view"), cnt = ebi("nu_count");
+
+	// THE UPLOAD BRANCH, AND IT IS FIRST (spec 0003 D2).
+	//
+	// there is no second footer strip and there is not going to be one:
+	// 0001 and 0002 spent two specs keeping this layout to four bands of
+	// chrome, and a queue running behind a closed sheet is exactly the kind
+	// of thing one line of an existing surface can say. so while ST.upl is
+	// non-null this line IS the upload, over everything else it might have
+	// been saying -- and it is also the only door back to the panel once
+	// the sheet is shut, which is what the role and the tabindex are for.
+	//
+	// every number here is up2k's own: the two counts off the #u2cards
+	// spans it already maintains, the percent off the head of the string
+	// its Donut hands to wintitle(). nu counts nothing itself, so nothing
+	// here can drift from what the panel says one tap away.
+	if (ST.upl !== null) {
+		var pct = /^\s*([0-9.]+)%/.exec(ST.upl),
+			done = upl_ctr("done"),
+			// `done` is ok+ng and `q` is what has not started; `bz` is the
+			// files in flight between them. the plan names the first two,
+			// and the third is in the total for the reason a total exists:
+			// without it "3/7" drops to "3/6" the moment a file starts
+			// hashing and climbs back when it lands.
+			tot = done === null ? null : done + (upl_ctr("bz") || 0) + (upl_ctr("q") || 0),
+			txt = t("nu_a_up");
+
+		// a miss degrades to the label alone. NEVER to NaN: these are
+		// three spans and a regex over a string another file formats, so
+		// every one of them is a thing that can one day not be there, and
+		// "NaN/NaN · NaN%" is a worse status line than no numbers at all.
+		if (done !== null && tot)
+			txt = done + "/" + tot;
+
+		if (pct)
+			txt += " · " + Math.round(parseFloat(pct[1])) + "%";
+
+		cnt.textContent = txt;
+		cnt.setAttribute("role", "button");
+		cnt.setAttribute("tabindex", "0");
+		return;
+	}
+
+	// and the attributes come off again on the way out, exactly the way the
+	// selection branch takes its aria-label off below: a status line still
+	// carrying role=button after the queue drained is a button that does
+	// nothing, announced as one, for the rest of the session.
+	cnt.removeAttribute("role");
+	cnt.removeAttribute("tabindex");
 
 	// selection mode relabels THESE TWO NODES and adds none of its own: the
 	// design swaps the whole status line's contents (README:108-111), and a
@@ -2084,7 +2139,7 @@ function render_stat(shown) {
 	// this row is the second column beside #nu_tools. #nu_sort keeps its
 	// place in that row at both widths either way.
 	if (ST.selmode) {
-		ebi("nu_count").textContent = sel_n() + " " + t("nu_nsel");
+		cnt.textContent = sel_n() + " " + t("nu_nsel");
 
 		srt.textContent = t("nu_selall");
 		srt.setAttribute("aria-label", t("nu_selall_t"));
@@ -2105,7 +2160,7 @@ function render_stat(shown) {
 			sz += shown[a].sz || 0;
 
 	var word = t(n == 1 ? "nu_item" : "nu_items");
-	ebi("nu_count").textContent = n + " " + word + (sz ? " · " + nu_hsz(sz) : "");
+	cnt.textContent = n + " " + word + (sz ? " · " + nu_hsz(sz) : "");
 
 	srt.textContent = sort_label(ST.sortKey) + " " +
 		(ST.sortDir > 0 ? "↑" : "↓");
@@ -2118,6 +2173,25 @@ function render_stat(shown) {
 	var g = pref("nu_grid");
 	vw.textContent = t(g ? "nu_v_list" : "nu_v_grid");
 	vw.setAttribute("aria-label", t(g ? "nu_v_list_t" : "nu_v_grid_t"));
+}
+
+// one of the five counters up2k keeps in #u2cards, as a number -- or null
+// when there is nothing there to read.
+//
+// null and not 0, and the difference is the whole point: 0 is "no files in
+// that state", which is a fact the status line can print, and null is "that
+// span is not on this page", which is a fact it must not print as a number.
+// the panel is generated on the sheet's FIRST OPEN, so before that open
+// there is no #u2cards at all -- and ST.upl can already be non-null by
+// then only if up2k is running, which cannot happen without the panel; the
+// guard is here for the other case, the day this markup changes upstream.
+function upl_ctr(act) {
+	var el = document.querySelector('#u2cards a[act="' + act + '"] span');
+	if (!el)
+		return null;
+
+	var n = parseInt(el.textContent, 10);
+	return isNaN(n) ? null : n;
 }
 
 function sort_label(k) {
@@ -2551,6 +2625,11 @@ function draw() {
 	sw_close();
 
 	var shown = filtered();
+	// cached BEFORE the call and not after: render_stat can be reached
+	// again from anywhere while this one is still running (the upload
+	// branch below repaints off a timer), and a stale cache there would
+	// describe the listing the user was looking at a moment ago.
+	ST.shown = shown;
 	render_stat(shown);
 	// beside render_stat, and NOT bolted into pick_sort(): the arrow is
 	// state, and repainting it in the draw cycle is what keeps the header
@@ -4350,8 +4429,10 @@ function mount_upl() {
 		'<div id="u2err"></div>\n' +
 		upl_htm() +
 		'</div>\n' +
+		'<button type="button" class="nu_u2more" aria-expanded="false"></button>\n' +
 		upl_sw_htm();
 
+	mount_disc();
 	mount_furn();
 
 	// the seam: everything up2k.js is owed now exists, and nothing has
@@ -4375,6 +4456,35 @@ function mount_upl() {
 	}
 
 	load_upl();
+}
+
+// the switches disclosure, and the reason it is ONE CLASS on the panel
+// root instead of a second innerHTML.
+//
+// every switch up2k owns is rendered, always -- bcfg_get returns defval
+// WITHOUT READING STORAGE when the element is absent (util.js:1314-1317),
+// so a switch this panel chose not to draw is not merely undrawn, it
+// silently discards the value the user saved, on every single load. so the
+// panel a phone gets is one button and a queue, and the twelve switches
+// plus the #u2conf row are one tap away and still in the dom the whole
+// time: nu.css hides them behind `.nu_more` and ORDERS both of them to
+// land directly under this button, which is why #u2conf being written at
+// the top of the panel (up2k's wide layout needs its cells there) costs
+// nothing here.
+//
+// the label is nu's one new string of this spec. aria-expanded is written
+// on both sides, because a disclosure that never says it closed again is
+// worse than one that never said it opened.
+function mount_disc() {
+	var b = document.querySelector("#nu_uplb .nu_u2more");
+	if (!b)
+		return;
+
+	b.textContent = t("nu_u2_more");
+	b.onclick = function () {
+		var on = ebi("nu_uplb").classList.toggle("nu_more");
+		b.setAttribute("aria-expanded", on ? "true" : "false");
+	};
 }
 
 // up2k's own stylesheet, and the one line of this card a reader is most
@@ -4916,9 +5026,30 @@ window.mp = { au: null };
 // browser.js:9636-9646 is the shape for the title itself. `noname` is the
 // classic UI's "leave the server name off this one" flag; nu puts no
 // server name in its title, so the argument is accepted and ignored.
+var upl_tpt = 0;
+
 window.wintitle = function (txt, noname) {
 	ST.upl = txt === undefined ? null : txt;
 	document.title = ((txt || "") + here_path().split("/").pop()) || "copyparty";
+
+	// and the status line goes with the title. this is the only pump nu has
+	// while a queue is running -- draw() is not called, nothing is being
+	// navigated -- so the repaint has to hang off the one call up2k already
+	// makes, and it hangs off it at ARM'S LENGTH: ST.shown is what draw()
+	// last handed render_stat, so the line keeps describing the folder it
+	// was describing without a second filtered().
+	//
+	// once a second, and not once per Donut frame. Donut.do already
+	// throttles itself to every tenth tick (up2k.js:711), but that is
+	// up2k's ratio to keep, not nu's to inherit -- and the DRAIN is exempt
+	// on purpose: the frame where ST.upl goes null is the one frame this
+	// line must never sit on, or it keeps the last percentage forever.
+	var now = Date.now();
+	if (ST.upl !== null && now - upl_tpt < 1000)
+		return;
+
+	upl_tpt = now;
+	render_stat(ST.shown || []);
 };
 
 // an INERT ROUTE GUARD, not a proxy. browser.js:1169-1203 resolves
@@ -5052,6 +5183,30 @@ window.apply_perms = function (res) {
 	var upa = ebi("nu_up");
 	if (!upa.classList.contains("nu_hidden"))
 		upa.href = keep(upa.getAttribute("href"));
+
+	// the status line is a door back into the upload sheet, and ONLY while
+	// a queue is running: render_stat puts role=button on #nu_count when
+	// ST.upl is non-null and takes it off when the queue drains, so the
+	// guard below and the thing a screen reader is told are the same fact,
+	// stated once. bound at boot rather than in the upload branch -- a
+	// handler reassigned once a second is a handler nobody can reason
+	// about.
+	function stat_act(e) {
+		if (!ebi("nu_count").getAttribute("role"))
+			return;
+
+		if (e)
+			e.preventDefault();
+
+		sheet("nu_upl", true);
+	}
+
+	ebi("nu_count").onclick = stat_act;
+
+	ebi("nu_count").onkeydown = function (e) {
+		if (e.key == "Enter" || e.key == " ")
+			stat_act(e);
+	};
 
 	ebi("nu_chips").onclick = function (e) {
 		var b = e.target.closest(".nu_chip");
