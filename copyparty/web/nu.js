@@ -4349,6 +4349,26 @@ function mount_upl() {
 		upl_sw_htm();
 
 	mount_furn();
+
+	// the seam: everything up2k.js is owed now exists, and nothing has
+	// been fetched yet. a miss here ABORTS the mount and names the missing
+	// id, selector or symbol in the sheet the user is already looking at --
+	// which is a loud failure at the moment that matters, instead of a
+	// stack trace out of a file nu did not write, thrown at the top level
+	// of a script tag where nothing can catch it.
+	//
+	// upl_up stays true: the markup a second open would generate is the
+	// same markup, so retrying can only fail identically -- and it would
+	// wipe the name off the screen on its way there.
+	//
+	// the string is not translated, on purpose. it is a tripwire for
+	// whoever is changing the classic UI, not a message for the person
+	// uploading a file.
+	var miss = check_upl();
+	if (miss) {
+		ebi("nu_uplb").textContent = "up2k contract broken, missing: " + miss;
+		return;
+	}
 }
 
 // the four things up2k.js reaches for that are NOT inside the panel, and
@@ -4544,6 +4564,128 @@ function upl_sw_htm() {
 		'	<h3>' + L.cl_favico + ' <span id="ico1">🎉</span></h3>\n' +
 		'</div>'
 	);
+}
+
+// -- the contract self-check -------------------------------------------
+//
+// the tripwire spec 0003 D3 asks for. this repo has no JS harness --
+// tests/ is python-only and CI runs `python -m unittest discover -s
+// tests` -- so the boundary check ships inside nu.js, and runs on the
+// sheet's first open, between the mount and the injection: a contract
+// miss is named before a byte of up2k.js is fetched, instead of arriving
+// later as a stack trace from inside a file nu did not write.
+//
+// the id list below is the CHECKED SET of the plan's "The contract, in
+// one place" -- the markup nu is replacing, plus every unguarded
+// dereference in up2k.js. it is deliberately NOT
+// `grep -oE "ebi\('...'\)" up2k.js`: that grep returns 47 ids and is
+// wrong in both directions. two of its hits are commented out and dead,
+// and it misses u2btn_ct / u2c3t / u2btn_cw, which onresize reaches
+// through a computed argument (up2k.js:3069, :3078), plus all twelve
+// switches, which arrive through bcfg_bind/fcfg_bind inside util.js.
+//
+// THREE THINGS THIS STRUCTURALLY CANNOT CHECK. each is deliberate, and
+// none of the three is a gap to be closed later:
+//
+//  1. what up2k.js creates for ITSELF -- u2depmsg (:854), actx_go
+//     (:1585), undor (:3222), nagtest (:3430), u2depotato/u2enpotato
+//     (:441-442). they do not exist when this runs, and demanding them
+//     would be demanding that up2k.js has already been loaded, which is
+//     precisely what this check gates.
+//
+//  2. the ids that only exist once an L STRING renders -- lifem, lifeh,
+//     lifew, u2nah, u2yea. no markup can supply them: they are inside the
+//     strings of card 1's slice, and up2k.js writes those strings into
+//     the DOM itself.
+//
+//  3. the two ids that are DEAD in the source and must never be added
+//     back -- acc_info (up2k.js:1646) and lifes (:3264), both commented
+//     out. a list built from the grep demands two nodes nothing reads.
+//
+// the live walk in the plan's Verification covers the first two.
+
+var UPL_IDS = [
+	// the panel (browser.js:868-947)
+	"u2form", "u2conf", "multitask", "potato", "u2rand", "u2ow", "fsearch",
+	"u2btn_cw", "u2c3w", "nthread_sub", "nthread", "nthread_add",
+	"u2notbtn", "u2btn_ct", "u2btn", "u2bm", "u2c3t", "u2etaw", "u2etas",
+	"u2etah", "u2etau", "u2etat", "u2cards", "u2tabw", "u2tab", "luplinks",
+	"cuplinks", "u2mu", "u2flagblock", "u2life", "u2foot",
+
+	// the drop overlay (browser.js:960-971) -- up_dz, srch_dz and drops
+	// are dereferenced unguarded at up2k.js:1143 and :1150
+	"drops", "up_zd", "srch_zd", "up_dz", "srch_dz",
+
+	// the twelve upload switches (browser.js:1035-1053), every one of
+	// them: bcfg_get returns defval without touching storage when the
+	// element is missing, so an omitted switch silently discards the
+	// value the user saved, on every load
+	"ask_up", "u2ts", "umod", "hashw", "nosubtle", "u2turbo", "u2tdate",
+	"u2szg", "flag_en", "u2sort", "upnag", "upsfx",
+
+	// the page furniture: u2err (up2k.js:867-872, inside setmsg),
+	// op_up2k (:3335, :3491), repl (:396 and :1963, both .offsetTop),
+	// ops (:3064-3066, getComputedStyle), ico1 (:3482, top level)
+	"u2err", "op_up2k", "repl", "ops", "ico1"
+];
+
+// the four nodes an id sweep cannot see, each dereferenced with no guard:
+// the tab-bar anchor Donut resolves (up2k.js:638), the <span> inside each
+// .dropdesc that the first dragenter writes into (:1050-1051, :1059-1060)
+// and the two labels set_ow (:921) and set_fsearch reach through QS().
+var UPL_SELS = [
+	'#ops a[data-dest="up2k"]',
+	"#up_zd span",
+	"#srch_zd span",
+	'label[for="u2ow"]',
+	'label[for="fsearch"]'
+];
+
+// the ten reaches of spec 0003 D3 part 2, as twelve names -- treectl,
+// fileman, msel and mp are checked as names and not as shapes, because a
+// name that is present with the wrong shape is a nu bug and not a
+// contract drift.
+var UPL_SYMS = [
+	"treectl", "fileman", "msel", "mp", "wintitle", "go2up2k", "go2bup",
+	"goto", "start_actx", "actx", "ACtx", "apply_perms"
+];
+
+// returns the name of the FIRST thing missing, or "" when the contract
+// holds. it never throws: a check that dies is a check that reports
+// nothing, and the panel it was gating half-boots anyway.
+function check_upl() {
+	var a;
+
+	for (a = 0; a < UPL_SYMS.length; a++)
+		// `in`, and not truthiness: actx is legitimately null until
+		// something calls start_actx(), and that null IS the contract
+		if (!(UPL_SYMS[a] in window))
+			return UPL_SYMS[a];
+
+	for (a = 0; a < UPL_IDS.length; a++)
+		if (!ebi(UPL_IDS[a]))
+			return UPL_IDS[a];
+
+	for (a = 0; a < UPL_SELS.length; a++)
+		if (!document.querySelector(UPL_SELS[a]))
+			return UPL_SELS[a];
+
+	// two conditions the arrays above cannot express, both contract:
+	//
+	// the tab-bar anchor needs TEXT, not just existence -- Donut stores
+	// its textContent as the `ico` attribute and writes it back when the
+	// queue drains (up2k.js:638-640, :686), so an empty anchor is a donut
+	// that never turns back into a tab.
+	if (!document.querySelector('#ops a[data-dest="up2k"]').textContent)
+		return '#ops a[data-dest="up2k"] (empty textContent)';
+
+	// and #op_up2k needs the `act` class: QS('#op_up2k.act') at
+	// up2k.js:3491 is the only thing on the page that calls goto_up2k()
+	// -> init_deps(), the main-thread hasher fallback.
+	if (!ebi("op_up2k").classList.contains("act"))
+		return "op_up2k (no act class)";
+
+	return "";
 }
 
 // -- the browser.js shim -----------------------------------------------
