@@ -2663,16 +2663,15 @@ function sheet(id, on) {
 
 var ACTS = [
 	["up", "nu_a_up", null,
+		// the same expression mkdir carries one row below, and for the same
+		// reason: a user without write has no business being offered an
+		// upload the server would refuse. spec 0001 D2's dead button was
+		// for a thing THIS UI had not built yet -- a thing the SERVER
+		// refuses takes the show() path instead, which is the rule SACTS'
+		// delete row already states.
+		function () { return !!(perms && perms.indexOf("write") + 1); },
 		function () { return true; },
-		function () { return false; },
-		function () {
-			// upload is out to its own spec (D2): up2k.js is not a library,
-			// it drives ~47 specific element ids. until that spec lands the
-			// honest state is a visibly dead button that routes to the UI
-			// where uploading works -- not a hidden one that makes this look
-			// finished.
-			location.href = location.pathname + "?nu0";
-		}],
+		function () { sheet("nu_upl", true); }],
 
 	["mkdir", "nu_a_mkdir", null,
 		function () { return !!(perms && perms.indexOf("write") + 1); },
