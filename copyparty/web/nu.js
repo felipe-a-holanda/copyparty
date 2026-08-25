@@ -2579,7 +2579,8 @@ var SHEETS = {
 	nu_sheet: render_sheet,
 	nu_menu: render_menu,
 	nu_cfg: render_cfg,
-	nu_tsh: render_tsh
+	nu_tsh: render_tsh,
+	nu_upl: render_upl
 };
 
 function sheet(id, on) {
@@ -4301,6 +4302,19 @@ function set_dots(v) {
 	});
 }
 
+// -- the upload panel --------------------------------------------------
+//
+// spec 0003 D2: the fifth tenant of sheet(), and the only one whose body is
+// generated rather than written in nu.html. up2k.js is not a library -- it
+// drives ~47 specific element ids, and it dereferences most of them with no
+// guard at all -- so the panel is that markup, regenerated here, and the
+// sheet is only the container it lives in.
+
+function render_upl() {
+	// a stub until the mount lands: sheet() calls the renderer before it
+	// unhides, so this is the seam every later step hangs off.
+}
+
 // -- boot --------------------------------------------------------------
 
 (function () {
@@ -4343,6 +4357,10 @@ function set_dots(v) {
 	// from one string.
 	ebi("nu_cfgh").textContent = t("nu_m_cfg");
 	ebi("nu_cfgx").setAttribute("aria-label", t("nu_back"));
+
+	// the upload sheet's title is the action bar's own key, for the same
+	// reason the settings screen's is the router row's.
+	ebi("nu_uplh").textContent = t("nu_a_up");
 
 	var upa = ebi("nu_up");
 	if (!upa.classList.contains("nu_hidden"))
