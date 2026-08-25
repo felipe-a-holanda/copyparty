@@ -13,7 +13,7 @@ nasce na spec; o plano em `docs/plans/<NNNN>-<slug>.md` espelha o mesmo número.
 
 | Spec | Title | Status | Evidence in the code |
 |---|---|---|---|
-| [0003](0003-nu-upload.md) | Upload: nu hosts the real up2k instead of reimplementing it. A phone can finally put files into copyparty from the new UI, and a desktop can drag a whole folder onto it, instead of being bounced to the old interface by a button that admits it does not work. | planejado | spec only — hoje `Enviar arquivos` é um botão morto que roteia pra `?nu0` (`web/nu.js:2486`), e `nu.html` não carrega `util.js` nem `up2k.js`. |
+| [0003](0003-nu-upload.md) | Upload: nu hosts the real up2k instead of reimplementing it. A phone can finally put files into copyparty from the new UI, and a desktop can drag a whole folder onto it, instead of being bounced to the old interface by a button that admits it does not work. | planejado | spec + plano ([0003](../plans/0003-nu-upload.md): 5 cards, 14 commits, uma lane) — nada no código ainda: `Enviar arquivos` segue morto roteando pra `?nu0` (`web/nu.js:2486`) e `nu.html` não carrega `util.js` nem `up2k.js`. Próximo: `/exec docs/plans/0003-nu-upload.md`. |
 
 ## Recently landed
 

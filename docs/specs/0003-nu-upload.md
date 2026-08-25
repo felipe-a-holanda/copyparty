@@ -22,7 +22,7 @@ par: "[[plans/0003-nu-upload|plan]]"
 > target before the uploader exists would produce a target that swallows files"
 > (`0002:467-469`). This spec answers the question and builds the answer.
 
-- **Status:** planejado — spec only.
+- **Status:** planejado — spec + plano ([[plans/0003-nu-upload|0003]]); próximo passo é `/exec`.
 - **Hardened:** 2026-08-25 against `3defa788`
 
 Today `nu` renders `Enviar arquivos` as a visibly dead button that routes to `?nu0`:
