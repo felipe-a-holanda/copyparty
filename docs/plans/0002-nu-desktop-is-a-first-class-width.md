@@ -3,9 +3,9 @@ number: 0002
 type: plan
 slug: nu-desktop-is-a-first-class-width
 title: "Desktop is a first-class width: the responsive contract for nu"
-status: planejado
+status: pousado
 created: 2026-08-23
-tags: [plan, status/planejado]
+tags: [plan, status/pousado]
 par: "[[specs/0002-nu-desktop-is-a-first-class-width|spec]]"
 ---
 
