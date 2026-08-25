@@ -383,7 +383,12 @@ Ls.eng = {
 	u_uri: "to dragdrop images from other browser windows,\nplease drop it onto the big upload button",
 
 	// nu's own: the switches disclosure Card 5 wires up
-	nu_u2_more: "More options"
+	nu_u2_more: "More options",
+
+	// nu's own: the sheet from the tap until up2k's hasher resolves, and
+	// the dead end when one of the two scripts never arrives
+	nu_u2_load: "loading the uploader\u2026",
+	nu_u2_eload: "could not load the uploader"
 };
 
 // per-key, and that is the whole point of writing a second t(): the classic
@@ -4370,7 +4375,7 @@ function mount_upl() {
 		return;
 	}
 
-	inject_ui_css();
+	load_upl();
 }
 
 // up2k's own stylesheet, and the one line of this card a reader is most
@@ -4411,6 +4416,129 @@ function inject_ui_css() {
 
 	link.href = SR + "/.cpr/w/ui.css?_=" + TS;
 	document.head.insertBefore(link, document.head.firstChild);
+}
+
+// the loader: three files, in an order that two mechanisms in the tree
+// force, and getting either wrong fails in silence (spec 0003 D6).
+//
+// it runs once per page life, behind mount_upl's flag, and only after
+// check_upl has passed -- nothing is fetched until the contract is known
+// to hold, so a contract miss is named before a byte goes over the wire.
+function load_upl() {
+	// up2k.js declares `up2k = null` (:30) and resolves it asynchronously
+	// through crypto.subtle.digest (:40-44), so between the tap and a
+	// working panel there is a window -- brief on a warm cache, not brief
+	// on a cold one over a slow link -- where the markup is on screen and
+	// every control in it is dead. nu shows a word instead.
+	upl_wait(t("nu_u2_load"));
+
+	inject_ui_css();
+
+	// util.js:310-311 is `if (!window.Ls || !window.langmod) var Ls = {};`
+	// and BOTH halves must be false or the dictionary is wiped. nu.html:257
+	// declares `var Ls = {}` and the tl tag at :282 fills it, so window.Ls
+	// is truthy -- but window.langmod is undefined, the condition holds,
+	// and util.js resets Ls to an empty object. `L` (:229) keeps its own
+	// reference and survives, so t()'s first branch still answers: the
+	// failure is INVISIBLE on eng, where L *is* Ls.eng, and total on any
+	// other language, where t() falls through to Ls.eng[k] for every key
+	// the active tl file does not carry -- which is every nu_* key.
+	//
+	// the `|| ` is not defensive noise. langmod is the translator tooling's
+	// own hook (scripts/tl.js:12, scripts/tl.py:52), delivered through the
+	// --js slot nu.html:286 emits AFTER nu.js -- so a bare assignment here
+	// would replace a real langmod with a no-op and break translating
+	// against nu, months from now, silently.
+	window.langmod = window.langmod || function () { };
+
+	// util.js:2352 calls bchrome() at top level and unconditionally.
+	// nu.html:8 has a <meta name=theme-color>, so it does not early-return;
+	// cprop('--bg-u3') resolves empty (neither nu.css nor ui.css declares
+	// it) and <html> carries no `y` class (nu themes through a data-thm
+	// attribute), so the fallback branch always wins and it writes the
+	// literal #333 over the volume's admin-configured tcolor
+	// (httpcli.py:347). nu never re-renders that meta -- it is
+	// server-rendered once -- so the loss would last the page's life.
+	// read it here, write it back the instant util.js has run.
+	var meta = document.querySelector('meta[name=theme-color]'),
+		tcolor = meta && meta.getAttribute("content");
+
+	upl_js(SR + "/.cpr/w/util.js", function () {
+		if (meta && tcolor !== null)
+			meta.setAttribute("content", tcolor);
+
+		// on util.js's onload, and NOT as a second call in a row. up2k.js
+		// is "use strict" (:1) and dies inside its very first IIFE (:5-14)
+		// on the bare `nosubtle` -- the assignment at :8 or the read at
+		// :9 -- which exists only once util.js:16-17 has sprayed CGV1;
+		// CHROME / FIREFOX / VCHROME on the lines below are util.js's too.
+		//
+		// from here on the injector is util.js's own import_js, which
+		// stamps JS_NONCE itself (util.js:446-447) -- the whole point of
+		// nu.html carrying that global.
+		import_js(SR + "/.cpr/w/up2k.js", upl_poll, upl_eload);
+	}, upl_eload);
+}
+
+// the one script nu injects itself, for the flat reason that import_js
+// lives in the file being injected. same shape as util.js:441-456, minus
+// the toast it cannot reach yet.
+function upl_js(url, cb, ecb) {
+	var s = document.createElement("script");
+	s.type = "text/javascript";
+	if (window.JS_NONCE)
+		s.nonce = JS_NONCE;
+
+	s.src = url + "?_=" + TS;
+	s.onload = cb;
+	s.onerror = ecb;
+	document.head.appendChild(s);
+}
+
+// the panel has to BE in the DOM while all this loads -- up2k.js binds to
+// it at top level -- so the loading state hides #nu_uplb rather than
+// replacing it. the inline display goes on nu's own container and nothing
+// else: every node up2k.js owns is inside it and keeps its own style
+// untouched, and up2k's init measures nothing a hidden ancestor changes
+// (onresize, up2k.js:3062-3086, reads window.innerWidth and #ops's
+// font-size, and #ops is a child of <body>).
+//
+// an empty msg is "done": the word goes, the panel comes back.
+function upl_wait(msg) {
+	var b = ebi("nu_uplb"), w = ebi("nu_uplw");
+
+	if (!msg) {
+		if (w)
+			w.parentNode.removeChild(w);
+
+		b.style.display = "";
+		return;
+	}
+
+	if (!w) {
+		w = document.createElement("p");
+		w.id = "nu_uplw";
+		w.className = "nu_empty";
+		b.parentNode.insertBefore(w, b);
+	}
+
+	w.textContent = msg;
+	b.style.display = "none";
+}
+
+function upl_eload() {
+	upl_wait(t("nu_u2_eload"));
+}
+
+// up2k.js:30 starts `up2k` at null and :40-44 assign it out of a promise;
+// it also legitimately ends up FALSE on a browser too old for up2k, which
+// still gets the basic uploader -- so the test is against null and
+// undefined, never truthiness.
+function upl_poll() {
+	if (window.up2k === null || window.up2k === undefined)
+		return setTimeout(upl_poll, 50);
+
+	upl_wait("");
 }
 
 // the four things up2k.js reaches for that are NOT inside the panel, and
