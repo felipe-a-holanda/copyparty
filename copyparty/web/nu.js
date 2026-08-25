@@ -4311,8 +4311,164 @@ function set_dots(v) {
 // sheet is only the container it lives in.
 
 function render_upl() {
-	// a stub until the mount lands: sheet() calls the renderer before it
-	// unhides, so this is the seam every later step hangs off.
+	mount_upl();
+}
+
+// written once, on the sheet's first open, and never again: up2k.js binds
+// its handlers to these exact nodes, so a second innerHTML would hand it a
+// panel it no longer knows -- the same rule #nu_head and #nu_cfgt live by,
+// one level up.
+var upl_up = false;
+
+function mount_upl() {
+	if (upl_up)
+		return;
+
+	upl_up = true;
+	ebi("nu_uplb").innerHTML = upl_htm() + upl_sw_htm();
+}
+
+// the panel, in the nesting browser.js:868-947 uses, and the nesting is
+// contract and not layout: up2k's onresize (up2k.js:3062-3086) MOVES #u2btn
+// between #u2btn_ct and #u2btn_cw and #u2etaw/#u2cards between #u2c3t and
+// #u2c3w, and decides which way to move by comparing parentNode. start it
+// anywhere else and the first resize either does nothing or undoes itself.
+//
+// the strings are read off `L` directly, never through t(). these are not
+// nu's strings -- they are the classic UI's, all 140 of them in Ls.eng
+// since Card 1 -- and up2k.js dereferences the very same keys off `L` two
+// lines after this markup lands, so a per-key fallback here would only hide
+// a gap that surfaces anyway.
+//
+// data-perm / data-dep are kept verbatim although nu's apply_perms (the
+// shim) ignores them: they cost nothing, and they are how a later card can
+// hide the read-only half of the table without inventing a second vocabulary.
+function upl_htm() {
+	return (
+		'<form id="u2form" method="post" enctype="multipart/form-data"></form>\n' +
+
+		'<table id="u2conf">\n' +
+		'	<tr>\n' +
+		'		<td class="c" data-perm="read"><br />' + L.ul_par + '</td>\n' +
+		'		<td class="c" rowspan="2">\n' +
+		'			<input type="checkbox" id="multitask" />\n' +
+		'			<label for="multitask" tt="' + L.ut_mt + '">🏃</label>\n' +
+		'		</td>\n' +
+		'		<td class="c" rowspan="2">\n' +
+		'			<input type="checkbox" id="potato" />\n' +
+		'			<label for="potato" tt="' + L.ut_pot + '">🥔</label>\n' +
+		'		</td>\n' +
+		'		<td class="c" rowspan="2">\n' +
+		'			<input type="checkbox" id="u2rand" />\n' +
+		'			<label for="u2rand" tt="' + L.ut_rand + '">🎲</label>\n' +
+		'		</td>\n' +
+		// the label is contract, not decoration: set_ow (up2k.js:921, run
+		// during init at :935) does QS('label[for="u2ow"]').innerHTML with
+		// no guard, and the same is true of label[for="fsearch"] in
+		// set_fsearch. neither is an id, so neither shows up in an id sweep.
+		'		<td class="c" rowspan="2">\n' +
+		'			<input type="checkbox" id="u2ow" />\n' +
+		'			<label for="u2ow" tt="' + L.ut_ow + '">?</label>\n' +
+		'		</td>\n' +
+		'		<td class="c" data-perm="read" data-dep="idx" rowspan="2">\n' +
+		'			<input type="checkbox" id="fsearch" />\n' +
+		'			<label for="fsearch" tt="' + L.ut_srch + '">🔎</label>\n' +
+		'		</td>\n' +
+		'		<td data-perm="read" rowspan="2" id="u2btn_cw"></td>\n' +
+		'		<td data-perm="read" rowspan="2" id="u2c3w"></td>\n' +
+		'	</tr>\n' +
+		'	<tr>\n' +
+		'		<td class="c" data-perm="read">\n' +
+		'			<a href="#" class="b" id="nthread_sub">&ndash;</a><input\n' +
+		'				class="txtbox" id="nthread" value="" tt="' + L.ut_par + '"/><a\n' +
+		'				href="#" class="b" id="nthread_add">+</a><br />&nbsp;\n' +
+		'		</td>\n' +
+		'	</tr>\n' +
+		'</table>\n' +
+
+		'<div id="u2notbtn"></div>\n' +
+
+		'<div id="u2btn_ct">\n' +
+		'	<div id="u2btn" tabindex="0">\n' +
+		'		<span id="u2bm"></span>\n' + L.ul_btn +
+		'	</div>\n' +
+		'</div>\n' +
+
+		'<div id="u2c3t">\n' +
+
+		'<div id="u2etaw"><div id="u2etas"><div class="o">\n' +
+		L.ul_hash + ': <span id="u2etah" tt="' + L.ut_etah + '">(' + L.ul_idle1 + ')</span><br />\n' +
+		L.ul_send + ': <span id="u2etau" tt="' + L.ut_etau + '">(' + L.ul_idle1 + ')</span><br />\n' +
+		'	</div><span class="o">' +
+		L.ul_done + ': </span><span id="u2etat" tt="' + L.ut_etat + '">(' + L.ul_idle1 + ')</span>\n' +
+		'</div></div>\n' +
+
+		'<div id="u2cards">\n' +
+		'	<a href="#" act="ok" tt="' + L.uct_ok + '">ok <span>0</span></a><a\n' +
+		'	href="#" act="ng" tt="' + L.uct_ng + '">ng <span>0</span></a><a\n' +
+		'	href="#" act="done" tt="' + L.uct_done + '">done <span>0</span></a><a\n' +
+		'	href="#" act="bz" tt="' + L.uct_bz + '" class="act">busy <span>0</span></a><a\n' +
+		'	href="#" act="q" tt="' + L.uct_q + '">que <span>0</span></a>\n' +
+		'</div>\n' +
+
+		'</div>\n' +
+
+		'<div id="u2tabw" class="na"><table id="u2tab">\n' +
+		'	<thead>\n' +
+		'		<tr>\n' +
+		'			<td>' + L.utl_name + ' &nbsp;(<a href="#" id="luplinks">' + L.utl_ulist + '</a>/<a href="#" id="cuplinks">' + L.utl_ucopy + '</a>' + L.utl_links + ')</td>\n' +
+		'			<td>' + L.utl_stat + '</td>\n' +
+		'			<td>' + L.utl_prog + '</td>\n' +
+		'		</tr>\n' +
+		'	</thead>\n' +
+		'	<tbody></tbody>\n' +
+		'</table><div id="u2mu"></div></div>\n' +
+
+		'<p id="u2flagblock"><b>' + L.ul_flagblk + '</p>\n' +
+		'<div id="u2life"></div>' +
+		'<div id="u2foot"></div>'
+	);
+}
+
+// the twelve switches of browser.js:1035-1053, plus #ico1.
+//
+// ALL TWELVE, ALWAYS, whatever the volume allows and whatever the panel
+// shows: bcfg_get returns defval without touching storage when the element
+// is missing (util.js:1314-1317), so an omitted switch does not merely fail
+// to render -- it silently throws away the value the user saved, on every
+// single load. this is the one block here where "render only what is
+// relevant" is a data-loss bug.
+//
+// #ico1 is in for the opposite reason: ebi('ico1').onclick is assigned at
+// up2k.js:3482, top level, unguarded. its three inputs (icot/icof/icob) are
+// NOT -- scfg_bind guards on `if (el)` (util.js:1371) -- and they are the
+// favicon's, not the uploader's, so they stay out.
+//
+// NOAC is util.js:25 and util.js is not loaded when this runs, so the two
+// attributes are written out. browser.js's stray </td> inside these <div>s
+// is dropped rather than copied: it is a leftover of an older table and the
+// parser discards it anyway.
+function upl_sw_htm() {
+	return (
+		'<div id="nu_uplsw">\n' +
+		'	<h3>' + L.cl_uopts + '</h3>\n' +
+		'	<div>\n' +
+		'		<a id="ask_up" class="tgl btn" href="#" tt="' + L.ut_ask + '</a>\n' +
+		'		<a id="u2ts" class="tgl btn" href="#" tt="' + L.ut_u2ts + '</a>\n' +
+		'		<a id="umod" class="tgl btn" href="#" tt="' + L.cut_umod + '</a>\n' +
+		'		<a id="hashw" class="tgl btn" href="#" tt="' + L.cut_mt + '</a>\n' +
+		'		<a id="nosubtle" class="tgl btn" href="#" tt="' + L.cut_wasm + '</a>\n' +
+		'		<a id="u2turbo" class="tgl btn ttb" href="#" tt="' + L.cut_turbo + '</a>\n' +
+		'		<a id="u2tdate" class="tgl btn ttb" href="#" tt="' + L.cut_datechk + '</a>\n' +
+		'		<input type="text" id="u2szg" value="" autocorrect="off" autocapitalize="off" style="width:3em" tt="' + L.cut_u2sz + '" />\n' +
+		'		<a id="flag_en" class="tgl btn" href="#" tt="' + L.cut_flag + '">💤</a>\n' +
+		'		<a id="u2sort" class="tgl btn" href="#" tt="' + L.cut_az + '">az</a>\n' +
+		'		<a id="upnag" class="tgl btn" href="#" tt="' + L.cut_nag + '">🔔</a>\n' +
+		'		<a id="upsfx" class="tgl btn" href="#" tt="' + L.cut_sfx + '">🔊</a>\n' +
+		'	</div>\n' +
+		'	<h3>' + L.cl_favico + ' <span id="ico1">🎉</span></h3>\n' +
+		'</div>'
+	);
 }
 
 // -- boot --------------------------------------------------------------
