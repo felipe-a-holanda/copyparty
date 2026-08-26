@@ -53,6 +53,33 @@ Static files under `web/` are only served if allowlisted in `RES`
 globs `*.js *.css` at the root, so root-level names are picked up for free;
 a subdirectory would need a Makefile rule.
 
+## the build stamp
+
+The nav row's right edge carries `#nu_ver` -- `#90·7a753389` in a built
+copy, `v1.20.20` in a checkout -- with the full
+`copyparty <ver> · commit <date> · booted <ts>` in its `title`. It answers
+one question, and it is the question a fork whose `main` deploys itself
+without a human (`contrib/autodeploy`) raises several times a day: *is what
+I am looking at the build I just pushed?*
+
+Both halves are baked at **build** time and neither is read from git at
+runtime: `scripts/make-sfx.sh` rewrites `__version__.py` from
+`git describe --tags`, so a production sfx carries
+`S_VERSION = "1.20.20-90-g7a753389"` and a `BUILD_DT` that is the last
+commit's date. `UI_VER` (`httpcli.py`) keeps the two halves of that suffix
+which actually discriminate -- the commit **count** since the upstream tag,
+which only climbs, and the sha, which `git show` takes verbatim -- and falls
+back to `v<release>` when there is no suffix to split.
+
+Running from a checkout there is no such rewrite, so `S_VERSION` is the same
+on every commit of the day; that is what the boot time in the tooltip is
+for. It is also what separates two deploys of the same day.
+
+`s_ver`/`s_vert` are added to `j2a` only when `tpl == "nu"`, and the stamp is
+static markup that `nu.js` never touches: every character in it is a version
+number, a sha or an ISO date, so it takes no `t()` overwrite -- and it is the
+one header node no re-render can destroy under a finger.
+
 ## design
 
 The mobile redesign lives in `design-handoff/` (prototypes, token list,

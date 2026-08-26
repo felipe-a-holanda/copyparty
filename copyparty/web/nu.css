@@ -354,6 +354,47 @@ textarea:focus {
 	display: none;
 }
 
+/* the build stamp (nu.html). mono, because what it spells is a sha and a
+   count and the eye compares those column by column; 10px, because it is
+   the one thing in this row that is never read on purpose -- it is looked
+   UP, once, when a deploy is in question.
+
+   --fg2 and not --fg4: this is small type someone has to actually READ
+   (and read digit by digit), and --fg4 is the tier this file reserves for
+   glyphs and marks -- the caret next to the folder name, the chevrons. at
+   10px that tier is 2.3:1 on the light ground.
+
+   `flex: 0 1 auto` with min-width:0 and not `0 0 auto` like its two
+   neighbours: on a 360px phone the title, the back link, `Selecionar` and
+   this all share one row, and of the four this is the only one that may
+   lose characters rather than push the folder name out of the row.
+
+   it is also the reason there is no `title`-based fallback story on touch:
+   a tooltip is a hover, so the short form has to be the useful one by
+   itself -- hence the commit count and the sha, and not the release
+   number, which is the same on every commit between two upstream tags. */
+#nu_ver {
+	/* last in the row and hard against its right edge, no matter that the
+	   markup puts it before the slot nu.js appends #nu_selb into: `order`
+	   is what keeps the mode button exactly where 0001 put it, and the
+	   auto margin is what stops the stamp from reading as a second half of
+	   the breadcrumb at >= 64em, where the title is left-aligned and the
+	   two would otherwise sit shoulder to shoulder. below that width the
+	   h1 is `flex: 1` and eats the free space itself, so the margin
+	   resolves to zero and this is simply the last thing on the line. */
+	order: 1;
+	margin-left: auto;
+	flex: 0 1 auto;
+	min-width: 0;
+	font: 500 10px var(--mono);
+	color: var(--fg2);
+	letter-spacing: .02em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	cursor: default;
+}
+
 /* the nav bar's right slot (README:96-97): 14px/500, muted outside the
    mode and accent inside it. both states are declared here and the mode is
    one attribute on <html>, so nothing else has to know which is showing.

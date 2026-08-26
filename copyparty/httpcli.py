@@ -31,7 +31,7 @@ except:
     pass
 
 from .__init__ import ANYWIN, PY2, RES, RESM, TYPE_CHECKING, EnvParams, unicode
-from .__version__ import S_VERSION
+from .__version__ import S_BUILD_DT, S_VERSION
 from .authsrv import LEELOO_DALLAS, VFS  # typechk
 from .bos import bos
 from .qrkode import QrCode, qr2svg, qrgen
@@ -168,6 +168,27 @@ BADXFF2 = ". Some copyparty features are now disabled as a safety measure.\n\n\n
 BADXFP = ', or change the copyparty global-option "xf-proto" to another header-name to read this value from. Alternatively, if your reverseproxy is not able to provide a header similar to "X-Forwarded-Proto", then you must tell copyparty which protocol to assume; either "--xf-proto-fb=http" or "--xf-proto-fb=https"'
 BADXFFB = "<b>NOTE: serverlog has a message regarding your reverse-proxy config</b>"
 BADVER = '<a class="r" href="https://github.com/9001/copyparty/security/advisories">Please upgrade copyparty; Your version has a vulnerability</a><p>(only users with permission "a" or "A" can see this message)</p>'
+
+# the build stamp nu's header carries, so a glance at the page says WHICH
+# build is being served -- the question a deploy that happens without a human
+# (contrib/autodeploy) makes you ask several times a day.
+#
+# both halves are baked at BUILD time: scripts/make-sfx.sh rewrites
+# __version__.py from `git describe --tags`, so a production sfx carries
+# "1.20.20-42-gb164aa0" and a BUILD_DT that is the last commit's date. the
+# short form is the two halves of that suffix which actually discriminate --
+# the commit COUNT since the tag, which only ever climbs, and the sha, which
+# `git show` takes verbatim.
+#
+# running from a checkout there is no such rewrite and S_VERSION is just the
+# release number, identical across every commit of the day; that is why the
+# tooltip also carries the process' boot time, which is what tells two dev
+# restarts (and two deploys of the same day) apart.
+_zsl = S_VERSION.split("-")
+if len(_zsl) == 3 and _zsl[2][:1] == "g":
+    UI_VER = "#%s\u00b7%s" % (_zsl[1], _zsl[2][1:])
+else:
+    UI_VER = "v" + S_VERSION
 
 H_CONN_KEEPALIVE = "Connection: Keep-Alive"
 H_CONN_CLOSE = "Connection: Close"
@@ -7345,6 +7366,19 @@ class HttpCli(object):
             "srv_info": srv_infot,
             "dtheme": self.args.theme,
         }
+
+        if tpl == "nu":
+            # only nu asks for this, and it is computed here rather than at
+            # import because the boot time is the server's, not the module's
+            # (__init__ is not shared when oxidized, __main__.py:2290) -- one
+            # strftime per html listing, and none at all for the classic UI.
+            zs = datetime.fromtimestamp(self.E.t0, UTC).strftime("%Y-%m-%d %H:%M")
+            j2a["s_ver"] = UI_VER
+            j2a["s_vert"] = "copyparty %s \u00b7 commit %s \u00b7 booted %s UTC" % (
+                S_VERSION,
+                S_BUILD_DT,
+                zs,
+            )
 
         if self.args.js_browser:
             zs = self.args.js_browser
