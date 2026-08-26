@@ -4677,8 +4677,8 @@ function mount_furn() {
 	var o = document.createElement("div");
 	o.innerHTML = (
 		'<div id="drops">\n' +
-		'	<div class="dropdesc" id="up_zd"><div>🚀 ' + L.udt_up + '<br /><span></span><div>🚀<b>' + L.udt_up + '</b></div><div><b>' + L.udt_up + '</b>🚀</div></div></div>\n' +
-		'	<div class="dropdesc" id="srch_zd"><div>🔎 ' + L.udt_srch + '<br /><span></span><div>🔎<b>' + L.udt_srch + '</b></div><div><b>' + L.udt_srch + '</b>🔎</div></div></div>\n' +
+		'	<div class="dropdesc" id="up_zd"><div>🚀 ' + t("udt_up") + '<br /><span></span><div>🚀<b>' + t("udt_up") + '</b></div><div><b>' + t("udt_up") + '</b>🚀</div></div></div>\n' +
+		'	<div class="dropdesc" id="srch_zd"><div>🔎 ' + t("udt_srch") + '<br /><span></span><div>🔎<b>' + t("udt_srch") + '</b></div><div><b>' + t("udt_srch") + '</b>🔎</div></div></div>\n' +
 		'	<div class="dropzone" id="up_dz" v="up_zd"></div>\n' +
 		'	<div class="dropzone" id="srch_dz" v="srch_zd"></div>\n' +
 		'</div>' +
@@ -4708,11 +4708,13 @@ function mount_furn() {
 // #u2c3w, and decides which way to move by comparing parentNode. start it
 // anywhere else and the first resize either does nothing or undoes itself.
 //
-// the strings are read off `L` directly, never through t(). these are not
-// nu's strings -- they are the classic UI's, all 140 of them in Ls.eng
-// since Card 1 -- and up2k.js dereferences the very same keys off `L` two
-// lines after this markup lands, so a per-key fallback here would only hide
-// a gap that surfaces anyway.
+// the strings are the classic UI's, not nu's -- all 140 of them in Ls.eng
+// since Card 1 -- but they are still read through t() and never off `L`
+// directly. `L` is `Ls[lang] || null` (:400): on any --lang other than eng
+// whose tl/<lang>.js fails to load, a bare `L.ul_par` is a TypeError at the
+// top of this string concat, and the whole panel never reaches the sheet.
+// t() answers `Ls.eng[k]` in exactly that case, which is the markup up2k.js
+// expects, in the language the install would have fallen back to anyway.
 //
 // data-perm / data-dep are kept verbatim although nu's apply_perms (the
 // shim) ignores them: they cost nothing, and they are how a later card can
@@ -4723,18 +4725,18 @@ function upl_htm() {
 
 		'<table id="u2conf">\n' +
 		'	<tr>\n' +
-		'		<td class="c" data-perm="read"><br />' + L.ul_par + '</td>\n' +
+		'		<td class="c" data-perm="read"><br />' + t("ul_par") + '</td>\n' +
 		'		<td class="c" rowspan="2">\n' +
 		'			<input type="checkbox" id="multitask" />\n' +
-		'			<label for="multitask" tt="' + L.ut_mt + '">🏃</label>\n' +
+		'			<label for="multitask" tt="' + t("ut_mt") + '">🏃</label>\n' +
 		'		</td>\n' +
 		'		<td class="c" rowspan="2">\n' +
 		'			<input type="checkbox" id="potato" />\n' +
-		'			<label for="potato" tt="' + L.ut_pot + '">🥔</label>\n' +
+		'			<label for="potato" tt="' + t("ut_pot") + '">🥔</label>\n' +
 		'		</td>\n' +
 		'		<td class="c" rowspan="2">\n' +
 		'			<input type="checkbox" id="u2rand" />\n' +
-		'			<label for="u2rand" tt="' + L.ut_rand + '">🎲</label>\n' +
+		'			<label for="u2rand" tt="' + t("ut_rand") + '">🎲</label>\n' +
 		'		</td>\n' +
 		// the label is contract, not decoration: set_ow (up2k.js:921, run
 		// during init at :935) does QS('label[for="u2ow"]').innerHTML with
@@ -4742,11 +4744,11 @@ function upl_htm() {
 		// set_fsearch. neither is an id, so neither shows up in an id sweep.
 		'		<td class="c" rowspan="2">\n' +
 		'			<input type="checkbox" id="u2ow" />\n' +
-		'			<label for="u2ow" tt="' + L.ut_ow + '">?</label>\n' +
+		'			<label for="u2ow" tt="' + t("ut_ow") + '">?</label>\n' +
 		'		</td>\n' +
 		'		<td class="c" data-perm="read" data-dep="idx" rowspan="2">\n' +
 		'			<input type="checkbox" id="fsearch" />\n' +
-		'			<label for="fsearch" tt="' + L.ut_srch + '">🔎</label>\n' +
+		'			<label for="fsearch" tt="' + t("ut_srch") + '">🔎</label>\n' +
 		'		</td>\n' +
 		'		<td data-perm="read" rowspan="2" id="u2btn_cw"></td>\n' +
 		'		<td data-perm="read" rowspan="2" id="u2c3w"></td>\n' +
@@ -4754,7 +4756,7 @@ function upl_htm() {
 		'	<tr>\n' +
 		'		<td class="c" data-perm="read">\n' +
 		'			<a href="#" class="b" id="nthread_sub">&ndash;</a><input\n' +
-		'				class="txtbox" id="nthread" value="" tt="' + L.ut_par + '"/><a\n' +
+		'				class="txtbox" id="nthread" value="" tt="' + t("ut_par") + '"/><a\n' +
 		'				href="#" class="b" id="nthread_add">+</a><br />&nbsp;\n' +
 		'		</td>\n' +
 		'	</tr>\n' +
@@ -4764,25 +4766,25 @@ function upl_htm() {
 
 		'<div id="u2btn_ct">\n' +
 		'	<div id="u2btn" tabindex="0">\n' +
-		'		<span id="u2bm"></span>\n' + L.ul_btn +
+		'		<span id="u2bm"></span>\n' + t("ul_btn") +
 		'	</div>\n' +
 		'</div>\n' +
 
 		'<div id="u2c3t">\n' +
 
 		'<div id="u2etaw"><div id="u2etas"><div class="o">\n' +
-		L.ul_hash + ': <span id="u2etah" tt="' + L.ut_etah + '">(' + L.ul_idle1 + ')</span><br />\n' +
-		L.ul_send + ': <span id="u2etau" tt="' + L.ut_etau + '">(' + L.ul_idle1 + ')</span><br />\n' +
+		t("ul_hash") + ': <span id="u2etah" tt="' + t("ut_etah") + '">(' + t("ul_idle1") + ')</span><br />\n' +
+		t("ul_send") + ': <span id="u2etau" tt="' + t("ut_etau") + '">(' + t("ul_idle1") + ')</span><br />\n' +
 		'	</div><span class="o">' +
-		L.ul_done + ': </span><span id="u2etat" tt="' + L.ut_etat + '">(' + L.ul_idle1 + ')</span>\n' +
+		t("ul_done") + ': </span><span id="u2etat" tt="' + t("ut_etat") + '">(' + t("ul_idle1") + ')</span>\n' +
 		'</div></div>\n' +
 
 		'<div id="u2cards">\n' +
-		'	<a href="#" act="ok" tt="' + L.uct_ok + '">ok <span>0</span></a><a\n' +
-		'	href="#" act="ng" tt="' + L.uct_ng + '">ng <span>0</span></a><a\n' +
-		'	href="#" act="done" tt="' + L.uct_done + '">done <span>0</span></a><a\n' +
-		'	href="#" act="bz" tt="' + L.uct_bz + '" class="act">busy <span>0</span></a><a\n' +
-		'	href="#" act="q" tt="' + L.uct_q + '">que <span>0</span></a>\n' +
+		'	<a href="#" act="ok" tt="' + t("uct_ok") + '">ok <span>0</span></a><a\n' +
+		'	href="#" act="ng" tt="' + t("uct_ng") + '">ng <span>0</span></a><a\n' +
+		'	href="#" act="done" tt="' + t("uct_done") + '">done <span>0</span></a><a\n' +
+		'	href="#" act="bz" tt="' + t("uct_bz") + '" class="act">busy <span>0</span></a><a\n' +
+		'	href="#" act="q" tt="' + t("uct_q") + '">que <span>0</span></a>\n' +
 		'</div>\n' +
 
 		'</div>\n' +
@@ -4790,15 +4792,15 @@ function upl_htm() {
 		'<div id="u2tabw" class="na"><table id="u2tab">\n' +
 		'	<thead>\n' +
 		'		<tr>\n' +
-		'			<td>' + L.utl_name + ' &nbsp;(<a href="#" id="luplinks">' + L.utl_ulist + '</a>/<a href="#" id="cuplinks">' + L.utl_ucopy + '</a>' + L.utl_links + ')</td>\n' +
-		'			<td>' + L.utl_stat + '</td>\n' +
-		'			<td>' + L.utl_prog + '</td>\n' +
+		'			<td>' + t("utl_name") + ' &nbsp;(<a href="#" id="luplinks">' + t("utl_ulist") + '</a>/<a href="#" id="cuplinks">' + t("utl_ucopy") + '</a>' + t("utl_links") + ')</td>\n' +
+		'			<td>' + t("utl_stat") + '</td>\n' +
+		'			<td>' + t("utl_prog") + '</td>\n' +
 		'		</tr>\n' +
 		'	</thead>\n' +
 		'	<tbody></tbody>\n' +
 		'</table><div id="u2mu"></div></div>\n' +
 
-		'<p id="u2flagblock"><b>' + L.ul_flagblk + '</p>\n' +
+		'<p id="u2flagblock"><b>' + t("ul_flagblk") + '</p>\n' +
 		'<div id="u2life"></div>' +
 		'<div id="u2foot"></div>'
 	);
@@ -4825,22 +4827,22 @@ function upl_htm() {
 function upl_sw_htm() {
 	return (
 		'<div id="nu_uplsw">\n' +
-		'	<h3>' + L.cl_uopts + '</h3>\n' +
+		'	<h3>' + t("cl_uopts") + '</h3>\n' +
 		'	<div>\n' +
-		'		<a id="ask_up" class="tgl btn" href="#" tt="' + L.ut_ask + '</a>\n' +
-		'		<a id="u2ts" class="tgl btn" href="#" tt="' + L.ut_u2ts + '</a>\n' +
-		'		<a id="umod" class="tgl btn" href="#" tt="' + L.cut_umod + '</a>\n' +
-		'		<a id="hashw" class="tgl btn" href="#" tt="' + L.cut_mt + '</a>\n' +
-		'		<a id="nosubtle" class="tgl btn" href="#" tt="' + L.cut_wasm + '</a>\n' +
-		'		<a id="u2turbo" class="tgl btn ttb" href="#" tt="' + L.cut_turbo + '</a>\n' +
-		'		<a id="u2tdate" class="tgl btn ttb" href="#" tt="' + L.cut_datechk + '</a>\n' +
-		'		<input type="text" id="u2szg" value="" autocorrect="off" autocapitalize="off" style="width:3em" tt="' + L.cut_u2sz + '" />\n' +
-		'		<a id="flag_en" class="tgl btn" href="#" tt="' + L.cut_flag + '">💤</a>\n' +
-		'		<a id="u2sort" class="tgl btn" href="#" tt="' + L.cut_az + '">az</a>\n' +
-		'		<a id="upnag" class="tgl btn" href="#" tt="' + L.cut_nag + '">🔔</a>\n' +
-		'		<a id="upsfx" class="tgl btn" href="#" tt="' + L.cut_sfx + '">🔊</a>\n' +
+		'		<a id="ask_up" class="tgl btn" href="#" tt="' + t("ut_ask") + '</a>\n' +
+		'		<a id="u2ts" class="tgl btn" href="#" tt="' + t("ut_u2ts") + '</a>\n' +
+		'		<a id="umod" class="tgl btn" href="#" tt="' + t("cut_umod") + '</a>\n' +
+		'		<a id="hashw" class="tgl btn" href="#" tt="' + t("cut_mt") + '</a>\n' +
+		'		<a id="nosubtle" class="tgl btn" href="#" tt="' + t("cut_wasm") + '</a>\n' +
+		'		<a id="u2turbo" class="tgl btn ttb" href="#" tt="' + t("cut_turbo") + '</a>\n' +
+		'		<a id="u2tdate" class="tgl btn ttb" href="#" tt="' + t("cut_datechk") + '</a>\n' +
+		'		<input type="text" id="u2szg" value="" autocorrect="off" autocapitalize="off" style="width:3em" tt="' + t("cut_u2sz") + '" />\n' +
+		'		<a id="flag_en" class="tgl btn" href="#" tt="' + t("cut_flag") + '">💤</a>\n' +
+		'		<a id="u2sort" class="tgl btn" href="#" tt="' + t("cut_az") + '">az</a>\n' +
+		'		<a id="upnag" class="tgl btn" href="#" tt="' + t("cut_nag") + '">🔔</a>\n' +
+		'		<a id="upsfx" class="tgl btn" href="#" tt="' + t("cut_sfx") + '">🔊</a>\n' +
 		'	</div>\n' +
-		'	<h3>' + L.cl_favico + ' <span id="ico1">🎉</span></h3>\n' +
+		'	<h3>' + t("cl_favico") + ' <span id="ico1">🎉</span></h3>\n' +
 		'</div>'
 	);
 }
