@@ -206,8 +206,8 @@ width-specific renderer to either:
 
 ### what the wide band still owes
 
-**Three** things, and search hits obey the same rules as listing rows in
-all three:
+**Two** things, and search hits obey the same rules as listing rows in
+both:
 
 1. **the full keyboard map** -- what exists is list traversal plus
    shift+arrow selection, not a map. Ownership of `keydown` while an
