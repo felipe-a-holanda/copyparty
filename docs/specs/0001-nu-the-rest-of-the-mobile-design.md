@@ -22,18 +22,20 @@ par: "[[plans/0001-nu-the-rest-of-the-mobile-design|plan]]"
 > swipe actions, pull-to-refresh, the image viewer, and recursive search. It does
 > **not** build upload, which gets its own spec.
 
-**Status:** planejado — plan written, and **re-planned against `decdcbca`** once
-spec 0002 landed. What exists in the tree today is the base layer plus 0002's width
-work (`web/nu.js`, `web/nu.css`, `web/nu.html`): three bands over one markup, the
-field-split row and its column grid, the column header, the `?tree=` reader with its
-wide dock, and desktop input. There is still no bottom bar, no `⋯`, no settings
-screen, no grid, no tree sheet, no selection, no swipe and no viewer, and the search
-box filters the current folder client-side (`filtered()`, `web/nu.js:328`). Every
-preference the design offers is hardcoded: `dir1st = true` (`web/nu.js:292`), one size
-format (`humansize()`, `:112`), no dotfile toggle. Two things this spec listed as its
-own arrived early with 0002 and are no longer owed here: the `?tree=` **widget** (0002
-§D3 — only its sheet wrapper remains) and the `cgv1` template binding. The plan
-(`docs/plans/0001-nu-the-rest-of-the-mobile-design.md`) mirrors this number.
+**Status:** pousado — todas as dez superfícies estão na árvore, em
+`f3ca08f9..bc1021f4`. O i18n com fallback por chave (`f3ca08f9`), a action bar nas
+duas colocações (`#nu_bar`/`#nu_acts`) e o `⋯` router (`#nu_menu`, `#nu_mopts`), a
+camada de preferências semeada pelos defaults do volume (`pref()`, `web/nu.js:328`)
+e a tela de configurações (`render_cfg()`, `:3000`, `#nu_cfg*`), o grid com
+thumbnails (`render_grid()`, `:2278`), o tree sheet sobre o widget único
+(`render_tree()`, `:3885`, `#nu_tsh*`), a seleção com suas duas entradas mais
+select-all/inverter, o swipe na linha, o pull-to-refresh, o visualizador de imagens
+(`#nu_vw*`) e a busca recursiva em volumes indexados (`#nu_srch`, `fd66efb3`). Suíte
+verde (31) e zero `.py` no diff; falta a walk viva em 390×844 e 1440×900. Duas coisas
+que esta spec listava chegaram antes com 0002 e não são mais devidas aqui: o
+**widget** `?tree=` (0002 §D3 — só o wrapper de sheet ficou) e o binding do template
+`cgv1`. Upload segue diferido pra spec própria. O plano
+(`docs/plans/0001-nu-the-rest-of-the-mobile-design.md`) espelha este número.
 
 ---
 

@@ -3,9 +3,9 @@ number: 0001
 type: plan
 slug: nu-the-rest-of-the-mobile-design
 title: "The rest of the mobile design: nu beyond the base layer"
-status: planejado
+status: pousado
 created: 2026-08-23
-tags: [plan, status/planejado]
+tags: [plan, status/pousado]
 par: "[[specs/0001-nu-the-rest-of-the-mobile-design|spec]]"
 ---
 

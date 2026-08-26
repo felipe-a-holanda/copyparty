@@ -16,7 +16,18 @@
 
 var ebi = document.getElementById.bind(document);
 
-function esc(t) {
+// esc, setck and humansize are named nu_esc / nu_setck / nu_hsz because
+// util.js declares its own esc (util.js:112), setck (util.js:1381) and
+// humansize (util.js:1006) -- and once util.js is on the page (Card 4),
+// those are collisions, not equivalences: util.js's esc throws on
+// null/undefined/a number where this one coerces; util.js's setck uses
+// xhr.onload, which never fires on a network error, where this one's
+// onloadend always runs its callback; util.js's humansize takes a second
+// (tersity) argument this one does not have, and up2k.js calls it with
+// one. ebi is left un-renamed on purpose: util.js:83's binding is
+// byte-identical, and renaming its ~80 call sites would bury these three
+// renames that actually matter. do not rename them back.
+function nu_esc(t) {
 	return String(t == null ? "" : t).replace(/[<>&"]/g, function (c) {
 		return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c];
 	});
@@ -217,7 +228,167 @@ Ls.eng = {
 	nu_nomatch: "nothing matches",
 	nu_empty: "this folder is empty",
 	nu_eload: "could not load listing",
-	nu_eold: "try the classic UI"
+	nu_eold: "try the classic UI",
+
+	// -- up2k: the panel, the drop overlay and the twelve switches
+	// (Card 1 of 0003-nu-upload) -- the mechanical union of the 98 keys
+	// up2k.js dereferences directly (grep -oE '\bL\.[a-zA-Z0-9_]+'
+	// web/up2k.js) and the 42 keys the markup blocks it replaces read
+	// (sed -n '868,947p;960,971p;1035,1054p' web/browser.js | grep -oE
+	// same pattern), minus the one key (ul_send) shared by both sets =
+	// 140. values are copied verbatim out of browser.js's Ls.eng
+	// (:11-685; 548 keys total there, not the plan's cited :11-1237,
+	// which closes an unrelated later block). u_life_cfg, u_life_est,
+	// u_ancient and u_su2k carry markup whose ids (lifem/lifeh/lifew/
+	// u2nah/u2yea) up2k.js binds by id -- do not touch them.
+	badreply: "Failed to parse reply from server",
+	cl_favico: "favicon",
+	cl_uopts: "up2k switches",
+	cut_az: "upload files in alphabetical order, rather than smallest-file-first$N$Nalphabetical order can make it easier to eyeball if something went wrong on the server, but it makes uploading slightly slower on fiber / LAN",
+	cut_datechk: "has no effect unless the turbo button is enabled$N$Nreduces the yolo factor by a tiny amount; checks whether the file timestamps on the server matches yours$N$Nshould <em>theoretically</em> catch most unfinished / corrupted uploads, but is not a substitute for doing a verification pass with turbo disabled afterwards\">date-chk",
+	cut_flag: "ensure only one tab is uploading at a time $N -- other tabs must have this enabled too $N -- only affects tabs on the same domain",
+	cut_mt: "use multithreading to accelerate file hashing$N$Nthis uses web-workers and requires$Nmore RAM (up to 512 MiB extra)$N$Nmakes https 30% faster, http 4.5x faster\">mt",
+	cut_nag: "OS notification when upload completes$N(only if the browser or tab is not active)",
+	cut_sfx: "audible alert when upload completes$N(only if the browser or tab is not active)",
+	cut_turbo: "the yolo button, you probably DO NOT want to enable this:$N$Nuse this if you were uploading a huge amount of files and had to restart for some reason, and want to continue the upload ASAP$N$Nthis replaces the hash-check with a simple <em>&quot;does this have the same filesize on the server?&quot;</em> so if the file contents are different it will NOT be uploaded$N$Nyou should turn this off when the upload is done, and then &quot;upload&quot; the same files again to let the client verify them\">turbo",
+	cut_u2sz: "size (in MiB) of each upload chunk; big values fly better across the atlantic. Try low values on very unreliable connections",
+	cut_umod: "if a file already exists on the server, update the server's last-modified timestamp to match your local file (requires write+delete permissions)\">re📅",
+	cut_wasm: "use wasm instead of the browser's built-in hasher; improves speed on chrome-based browsers but increases CPU load, and many older versions of chrome have bugs which makes the browser consume all RAM and crash if this is enabled\">wasm",
+	lang_set: "refresh to make the change take effect?",
+	u_actx: "click this text to prevent loss of<br />performance when switching to other windows/tabs",
+	u_ancient: 'your browser is impressively ancient -- maybe you should <a href="#" id="u2nah">use bup instead</a>',
+	u_applef: 'These {0} files (of {1} total) are probably undesirable;\nPress <code>OK/Enter</code> to SKIP the following files,\nPress <code>Cancel/ESC</code> to NOT exclude, and UPLOAD those as well:\n\n',
+	u_asku: 'upload these {0} files to <code>{1}</code>',
+	u_badf: 'These {0} files (of {1} total) were skipped, possibly due to filesystem permissions:\n\n',
+	u_bigtab: 'about to show {0} files\n\nthis may crash your browser, are you sure?',
+	u_blankf: 'These {0} files (of {1} total) are blank / empty; upload them anyways?\n\n',
+	u_cbusy: "waiting for server to trust us again after a network glitch...",
+	uct_bz: "hashing or uploading",
+	uct_done: "ok and ng combined",
+	uct_ng: "no-good: failed / rejected / not-found",
+	uct_ok: "completed successfully",
+	uct_q: "idle, pending",
+	u_cuerr: "failed to upload chunk {0} of {1};\nprobably harmless, continuing\n\nfile: {2}",
+	u_cuerr2: "server rejected upload (chunk {0} of {1});\nwill retry later\n\nfile: {2}\n\nerror ",
+	u_depot: 'switch to <a href="#">fancy UI</a> (may reduce upload speed)',
+	u_dirstuck: 'directory iterator got stuck trying to access the following {0} items; will skip:',
+	udt_drop: "drop it here",
+	udt_srch: "Search",
+	udt_up: "Upload",
+	u_dupdefer: "duplicate; will be processed after all other files",
+	ue_ab: "this file is already being uploaded into another folder, and that upload must be completed before the file can be uploaded elsewhere.\n\nYou can abort and forget the initial upload using the top-left 🧯",
+	u_ehsdf: "server ran out of disk space!\n\nwill keep retrying, in case someone\nfrees up enough space to continue",
+	u_ehsfin: "server rejected the request to finalize upload; retrying...",
+	u_ehsinit: "server rejected the request to initiate upload; retrying...",
+	u_ehssrch: "server rejected the request to perform search; retrying...",
+	u_ehstmp: "will retry; see bottom-right",
+	ue_la: 'you are currently logged in as "{0}"',
+	u_emtleak1: "it looks like your webbrowser may have a memory leak;\nplease",
+	u_emtleak2: ' <a href="{0}">switch to https (recommended)</a> or ',
+	u_emtleak3: ' ',
+	u_emtleakc: 'try the following:\n<ul><li>hit <code>F5</code> to refresh the page</li><li>then disable the &nbsp;<code>mt</code>&nbsp; button in the &nbsp;<code>⚙️ settings</code></li><li>and try that upload again</li></ul>Uploads will be a bit slower, but oh well.\nSorry for the trouble !\n\nPS: chrome v107 <a href="https://bugs.chromium.org/p/chromium/issues/detail?id=1354816" target="_blank">has a bugfix</a> for this',
+	u_emtleakf: 'try the following:\n<ul><li>hit <code>F5</code> to refresh the page</li><li>then enable <code>🥔</code> (potato) in the upload UI<li>and try that upload again</li></ul>\nPS: firefox <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1790500" target="_blank">will hopefully have a bugfix</a> at some point',
+	u_enethd: "network error while testing target existence; retrying...",
+	u_eneths: "network error while performing upload handshake; retrying...",
+	ue_nl: 'you are currently not logged in',
+	u_enoi: 'file-search is not enabled in server config',
+	u_enoow: "overwrite will not work here; need Delete-permission",
+	u_enpot: 'switch to <a href="#">potato UI</a> (may improve upload speed)',
+	u_eread: 'you do not have read-access to this folder',
+	ue_ro: 'your access to this folder is Read-Only\n\n',
+	ue_sr: 'you are currently in file-search mode\n\nswitch to upload-mode by clicking the magnifying glass 🔎 (next to the big SEARCH button), and try uploading again\n\nsorry',
+	ue_ta: 'try uploading again, it should work now',
+	u_etadone: 'Done ({0}, {1} files)',
+	u_etaprep: '(preparing to upload)',
+	u_ever: "this is the basic uploader; up2k needs at least<br>chrome 21 // firefox 13 // edge 12 // opera 12 // safari 5.1",
+	u_ewrite: 'you do not have write-access to this folder',
+	u_expl: "explain",
+	u_ff_many: "if you're using <b>Linux / MacOS / Android,</b> then this amount of files <a href=\"https://bugzilla.mozilla.org/show_bug.cgi?id=1790500\" target=\"_blank\"><em>may</em> crash Firefox!</a>\nif that happens, please try again (or use Chrome).",
+	u_fixed: "OK!&nbsp; Fixed it 👍",
+	u_gotpot: 'switching to the potato UI for improved upload speed,\n\nfeel free to disagree and switch back!',
+	u_hashdone: 'hashing done',
+	u_hashing: 'hash',
+	u_hs: 'handshaking...',
+	u_https1: "you should",
+	u_https2: "switch to https",
+	u_https3: "for better performance",
+	u_just1: '\nMaybe it works better if you select just one file',
+	ul_btn: "drop files / folders<br>here (or click me)",
+	ul_btnlk: "the server configuration has locked this switch into this state",
+	ul_btns: "S E A R C H",
+	ul_btnu: "U P L O A D",
+	ul_done: "done",
+	ul_flagblk: "the files were added to the queue</b><br>however there is a busy up2k in another browser tab,<br>so waiting for that to finish first",
+	ul_hash: "hash",
+	ul_idle1: "no uploads are queued yet",
+	u_life_cfg: 'autodelete after <input id="lifem" p="60" /> min (or <input id="lifeh" p="3600" /> hours)',
+	u_life_est: 'upload will be deleted <span id="lifew" tt="local time">---</span>',
+	u_life_max: 'this folder enforces a\nmax lifetime of {0}',
+	ul_par: "parallel uploads:",
+	ul_send: "send",
+	u_maxconn: "most browsers limit this to 6, but firefox lets you raise it with <code>connections-per-server</code> in <code>about:config</code>",
+	u_nav_b: '<a href="#" id="modal-ok">Files</a><a href="#" id="modal-ng">One folder</a>',
+	u_nav_m: '<h6>aight, what do you have?</h6><code>Enter</code> = Files (one or more)\n<code>ESC</code> = One folder (including subfolders)',
+	un_clip: "{0} links copied to clipboard",
+	u_nodrop: 'your browser is too old for drag-and-drop uploading',
+	u_notdir: "that's not a folder!\n\nyour browser is too old,\nplease try dragdrop instead",
+	u_nowork: "need firefox 53+ or chrome 57+ or iOS 11+",
+	u_pott: "<p>files: &nbsp; <b>{0}</b> finished, &nbsp; <b>{1}</b> failed, &nbsp; <b>{2}</b> busy, &nbsp; <b>{3}</b> queued</p>",
+	ur_1sn: "File was NOT found on server",
+	ur_1so: "OK: File found on server",
+	ur_1un: "Upload failed, sorry",
+	ur_1uo: "OK: File uploaded successfully",
+	ur_asn: "The {0} files were NOT found on server",
+	ur_aso: "OK: All {0} files found on server",
+	ur_aun: "All {0} uploads failed, sorry",
+	ur_auo: "OK: All {0} files uploaded successfully",
+	ur_sm: "Finished;\n{0} files found on server,\n{1} files NOT found on server",
+	ur_um: "Finished;\n{0} uploads OK,\n{1} uploads failed, sorry",
+	u_s404: "not found on server",
+	u_scan: 'Scanning files...',
+	u_started: "the files are now being uploaded; see [🚀]",
+	u_su2k: 'this is the basic uploader; <a href="#" id="u2yea">up2k</a> is better',
+	ut_ask: 'ask for confirmation before upload starts">💭',
+	ut_etah: "average &lt;em&gt;hashing&lt;/em&gt; speed, and estimated time until finish",
+	ut_etat: "average &lt;em&gt;total&lt;/em&gt; speed and estimated time until finish",
+	ut_etau: "average &lt;em&gt;upload&lt;/em&gt; speed and estimated time until finish",
+	utl_404: "404",
+	utl_defer: "defer",
+	utl_done: "done",
+	utl_err: "ERROR",
+	utl_found: "found",
+	utl_links: "links",
+	utl_name: "filename",
+	utl_oserr: "OS-error",
+	utl_prog: "progress",
+	utl_stat: "status",
+	utl_ucopy: "copy",
+	utl_ulist: "list",
+	utl_yolo: "YOLO",
+	ut_mt: "continue hashing other files while uploading$N$Nmaybe disable if your CPU or HDD is a bottleneck",
+	ut_ow: "overwrite existing files on the server?$N🛡️: never (will generate a new filename instead)$N🕒: overwrite if server-file is older than yours$N♻️: always overwrite if the files are different$N⏭️: unconditionally skip all existing files",
+	ut_par: "pause uploads by setting it to 0$N$Nincrease if your connection is slow / high latency$N$Nkeep it 1 on LAN or if the server HDD is a bottleneck",
+	ut_pot: "improve upload speed on slow devices$Nby making the UI less complex",
+	ut_rand: "randomize filenames",
+	u_ts: '<p class="warn">WARNING: turbo enabled, <span>&nbsp;search results can be incorrect; see turbo-button tooltip</span></p>',
+	ut_srch: "don't actually upload, instead check if the files already $N exist on the server (will scan all folders you can read)",
+	u_tu: '<p class="warn">WARNING: turbo enabled, <span>&nbsp;client may not detect and resume incomplete uploads; see turbo-button tooltip</span></p>',
+	ut_u2ts: "copy the last-modified timestamp$Nfrom your filesystem to the server\">📅",
+	u_turbo_c: "turbo is disabled in server config",
+	u_turbo_g: "disabling turbo because you don't have\ndirectory listing privileges within this volume",
+	u_unp_ng: 'unpost will NOT be allowed',
+	u_unp_ok: 'unpost is allowed for {0}',
+	u_unpt: "you can undo / delete this upload using the top-left 🧯",
+	u_up_life: "This upload will be deleted from the server\n{0} after it completes",
+	u_uri: "to dragdrop images from other browser windows,\nplease drop it onto the big upload button",
+
+	// nu's own: the switches disclosure Card 5 wires up
+	nu_u2_more: "More options",
+
+	// nu's own: the sheet from the tap until up2k's hasher resolves, and
+	// the dead end when one of the two scripts never arrives
+	nu_u2_load: "loading the uploader\u2026",
+	nu_u2_eload: "could not load the uploader"
 };
 
 // per-key, and that is the whole point of writing a second t(): the classic
@@ -478,7 +649,7 @@ var UNITS = {
 // (render_stat). the one thing this must never reformat is the folder
 // cell's NARROW form -- that is an item count, not a size, and it is built
 // from nfiles() and never passes through here.
-function humansize(n) {
+function nu_hsz(n) {
 	if (!n)
 		return n === 0 ? "0 B" : "";
 
@@ -592,7 +763,21 @@ var ST = {
 	// rule `vlist` above lives by. `folder` is the listing the hits
 	// displaced, kept so clearing the box puts it back without a second
 	// `?ls`; `busy`, `err` and `trunc` are the message strip's whole state.
-	srch: { q: null, folder: null, busy: false, err: "", trunc: false }
+	srch: { q: null, folder: null, busy: false, err: "", trunc: false },
+	// the upload queue's progress, in up2k's own words: the string its
+	// Donut hands to wintitle() once a second while a queue is busy, and
+	// NULL whenever nothing is uploading -- Donut.on(false) calls
+	// wintitle() with no argument at all when the queue drains
+	// (up2k.js:691), and that is the only "is anything uploading" flag
+	// there is. written by the shim's wintitle, below.
+	upl: null,
+	// the listing the status line is currently describing, cached by draw()
+	// on its way past render_stat. it is what lets ANYTHING else repaint
+	// that line -- the upload progress below is the first caller -- without
+	// re-running filtered() and without inventing a second idea of what is
+	// on screen. null until the first draw, and `[]` is a perfectly good
+	// answer for a caller arriving before it.
+	shown: null
 };
 
 // -- mode plumbing -----------------------------------------------------
@@ -615,7 +800,7 @@ function keep(href) {
 // characters, so the channel is reserved for the short names that already
 // exist -- `ui` here, `dots` below. an EMPTY value expires the cookie
 // (t = 0 at :5918), which is how both callers clear one.
-function setck(kv, cb) {
+function nu_setck(kv, cb) {
 	var xhr = new XMLHttpRequest();
 	xhr.open("GET", SR + "/?setck=" + kv, true);
 	xhr.onloadend = function () { if (cb) cb(); };
@@ -623,7 +808,7 @@ function setck(kv, cb) {
 }
 
 function unpin() {
-	setck("ui=", function () { location.href = location.pathname; });
+	nu_setck("ui=", function () { location.href = location.pathname; });
 }
 
 // -- dotfiles ----------------------------------------------------------
@@ -968,9 +1153,9 @@ function render_qmsg() {
 	}
 
 	el.hidden = !txt;
-	el.innerHTML = !txt ? "" : '<span class="nu_qt">' + esc(txt) + '</span>' +
+	el.innerHTML = !txt ? "" : '<span class="nu_qt">' + nu_esc(txt) + '</span>' +
 		(off ? '<button type="button" id="nu_qx">' +
-			esc(t("nu_q_off")) + '</button>' : "");
+			nu_esc(t("nu_q_off")) + '</button>' : "");
 }
 
 function srch_go(q) {
@@ -1691,7 +1876,7 @@ function sw_place(row) {
 
 	for (var a = 0; a < acts.length; a++)
 		h.push('<button type="button" class="nu_swb nu_sw_' + acts[a][0] +
-			'" data-s="' + acts[a][0] + '">' + esc(t(acts[a][1])) + '</button>');
+			'" data-s="' + acts[a][0] + '">' + nu_esc(t(acts[a][1])) + '</button>');
 
 	el.innerHTML = h.join("");
 	el.style.top = row.offsetTop + "px";
@@ -1891,13 +2076,61 @@ function render_chips() {
 	for (var a = 0; a < FILTERS.length; a++)
 		h.push('<button type="button" class="nu_chip' +
 			(FILTERS[a][0] == ST.filter ? " on" : "") +
-			'" data-f="' + FILTERS[a][0] + '">' + esc(t(FILTERS[a][1])) + '</button>');
+			'" data-f="' + FILTERS[a][0] + '">' + nu_esc(t(FILTERS[a][1])) + '</button>');
 
 	ebi("nu_chips").innerHTML = h.join("");
 }
 
 function render_stat(shown) {
-	var srt = ebi("nu_sort"), vw = ebi("nu_view");
+	var srt = ebi("nu_sort"), vw = ebi("nu_view"), cnt = ebi("nu_count");
+
+	// THE UPLOAD BRANCH, AND IT IS FIRST (spec 0003 D2).
+	//
+	// there is no second footer strip and there is not going to be one:
+	// 0001 and 0002 spent two specs keeping this layout to four bands of
+	// chrome, and a queue running behind a closed sheet is exactly the kind
+	// of thing one line of an existing surface can say. so while ST.upl is
+	// non-null this line IS the upload, over everything else it might have
+	// been saying -- and it is also the only door back to the panel once
+	// the sheet is shut, which is what the role and the tabindex are for.
+	//
+	// every number here is up2k's own: the two counts off the #u2cards
+	// spans it already maintains, the percent off the head of the string
+	// its Donut hands to wintitle(). nu counts nothing itself, so nothing
+	// here can drift from what the panel says one tap away.
+	if (ST.upl !== null) {
+		var pct = /^\s*([0-9.]+)%/.exec(ST.upl),
+			done = upl_ctr("done"),
+			// `done` is ok+ng and `q` is what has not started; `bz` is the
+			// files in flight between them. the plan names the first two,
+			// and the third is in the total for the reason a total exists:
+			// without it "3/7" drops to "3/6" the moment a file starts
+			// hashing and climbs back when it lands.
+			tot = done === null ? null : done + (upl_ctr("bz") || 0) + (upl_ctr("q") || 0),
+			txt = t("nu_a_up");
+
+		// a miss degrades to the label alone. NEVER to NaN: these are
+		// three spans and a regex over a string another file formats, so
+		// every one of them is a thing that can one day not be there, and
+		// "NaN/NaN · NaN%" is a worse status line than no numbers at all.
+		if (done !== null && tot)
+			txt = done + "/" + tot;
+
+		if (pct)
+			txt += " · " + Math.round(parseFloat(pct[1])) + "%";
+
+		cnt.textContent = txt;
+		cnt.setAttribute("role", "button");
+		cnt.setAttribute("tabindex", "0");
+		return;
+	}
+
+	// and the attributes come off again on the way out, exactly the way the
+	// selection branch takes its aria-label off below: a status line still
+	// carrying role=button after the queue drained is a button that does
+	// nothing, announced as one, for the rest of the session.
+	cnt.removeAttribute("role");
+	cnt.removeAttribute("tabindex");
 
 	// selection mode relabels THESE TWO NODES and adds none of its own: the
 	// design swaps the whole status line's contents (README:108-111), and a
@@ -1906,7 +2139,7 @@ function render_stat(shown) {
 	// this row is the second column beside #nu_tools. #nu_sort keeps its
 	// place in that row at both widths either way.
 	if (ST.selmode) {
-		ebi("nu_count").textContent = sel_n() + " " + t("nu_nsel");
+		cnt.textContent = sel_n() + " " + t("nu_nsel");
 
 		srt.textContent = t("nu_selall");
 		srt.setAttribute("aria-label", t("nu_selall_t"));
@@ -1927,7 +2160,7 @@ function render_stat(shown) {
 			sz += shown[a].sz || 0;
 
 	var word = t(n == 1 ? "nu_item" : "nu_items");
-	ebi("nu_count").textContent = n + " " + word + (sz ? " · " + humansize(sz) : "");
+	cnt.textContent = n + " " + word + (sz ? " · " + nu_hsz(sz) : "");
 
 	srt.textContent = sort_label(ST.sortKey) + " " +
 		(ST.sortDir > 0 ? "↑" : "↓");
@@ -1940,6 +2173,25 @@ function render_stat(shown) {
 	var g = pref("nu_grid");
 	vw.textContent = t(g ? "nu_v_list" : "nu_v_grid");
 	vw.setAttribute("aria-label", t(g ? "nu_v_list_t" : "nu_v_grid_t"));
+}
+
+// one of the five counters up2k keeps in #u2cards, as a number -- or null
+// when there is nothing there to read.
+//
+// null and not 0, and the difference is the whole point: 0 is "no files in
+// that state", which is a fact the status line can print, and null is "that
+// span is not on this page", which is a fact it must not print as a number.
+// the panel is generated on the sheet's FIRST OPEN, so before that open
+// there is no #u2cards at all -- and ST.upl can already be non-null by
+// then only if up2k is running, which cannot happen without the panel; the
+// guard is here for the other case, the day this markup changes upstream.
+function upl_ctr(act) {
+	var el = document.querySelector('#u2cards a[act="' + act + '"] span');
+	if (!el)
+		return null;
+
+	var n = parseInt(el.textContent, 10);
+	return isNaN(n) ? null : n;
 }
 
 function sort_label(k) {
@@ -2015,7 +2267,7 @@ function render_head() {
 //   a hidden cell *between* two visible ones orphans a separator.
 
 function cell(cls, txt) {
-	return txt ? '<span class="' + cls + '">' + esc(txt) + '</span>' : "";
+	return txt ? '<span class="' + cls + '">' + nu_esc(txt) + '</span>' : "";
 }
 
 // a cell whose text differs per band ships both forms and lets css pick:
@@ -2027,8 +2279,8 @@ function cell2(cls, n, w) {
 		return "";
 
 	return '<span class="' + cls + '">' +
-		'<span class="nu_n">' + esc(n) + '</span>' +
-		'<span class="nu_w">' + esc(w) + '</span></span>';
+		'<span class="nu_n">' + nu_esc(n) + '</span>' +
+		'<span class="nu_w">' + nu_esc(w) + '</span></span>';
 }
 
 function render_list(shown) {
@@ -2049,11 +2301,11 @@ function render_list(shown) {
 		// every cell by name so a missing one would cost it nothing, but
 		// the narrow band is a flex row and the back row would sit 30px
 		// left of every other row the moment the mode opened.
-		h.push('<a class="nu_row nu_dir nu_back" href="' + esc(keep(SR + "/" + up[0])) + '">' +
+		h.push('<a class="nu_row nu_dir nu_back" href="' + nu_esc(keep(SR + "/" + up[0])) + '">' +
 			'<span class="nu_ck"></span>' +
 			'<span class="nu_type">DIR</span>' +
-			'<span class="nu_meat"><span class="nu_name">' + esc(t("nu_back")) + '</span>' +
-			'<span class="nu_sub"><span class="nu_n">' + esc(t("nu_back2")) +
+			'<span class="nu_meat"><span class="nu_name">' + nu_esc(t("nu_back")) + '</span>' +
+			'<span class="nu_sub"><span class="nu_n">' + nu_esc(t("nu_back2")) +
 			'</span></span></span>' +
 			'<span class="nu_go">›</span></a>');
 	}
@@ -2076,8 +2328,8 @@ function render_list(shown) {
 			// still the 4096 of the directory inode.
 			sz = d
 				? (nf === null ? "" : cell2("nu_c_sz",
-					nf + " " + t(nf == 1 ? "nu_item" : "nu_items"), humansize(f.sz)))
-				: cell("nu_c_sz", humansize(f.sz)),
+					nf + " " + t(nf == 1 ? "nu_item" : "nu_items"), nu_hsz(f.sz)))
+				: cell("nu_c_sz", nu_hsz(f.sz)),
 			dt = cell2("nu_c_dt", dt_short(f), dt_long(f)),
 			// files only: a folder's ext is "---", so ext_of() would fall
 			// through to guessing from the name and label `my.backup` as
@@ -2085,8 +2337,8 @@ function render_list(shown) {
 			ty = d ? "" : cell("nu_c_ty", ext_of(f));
 
 		h.push('<a class="nu_row ' + (d ? "nu_dir" : "nu_file") +
-			(on ? " nu_on" : "") + '" data-k="' + esc(nk) +
-			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
+			(on ? " nu_on" : "") + '" data-k="' + nu_esc(nk) +
+			'" href="' + nu_esc(d ? keep(f.href) : f.href) + '">' +
 			// the CONTAINER is what the css animates from 0 to 30px, so it
 			// is emitted at every width and in both states; the circle
 			// inside it only ever changes class.
@@ -2095,14 +2347,14 @@ function render_list(shown) {
 			'<span class="nu_type' + (k && k != "dir" ? " nu_t_" + k : "") +
 			(txt.length > 3 ? " nu_long" : "") + '">' + txt + '</span>' +
 			'<span class="nu_meat">' +
-			'<span class="nu_name">' + esc(nm(f)) + '</span>' +
+			'<span class="nu_name">' + nu_esc(nm(f)) + '</span>' +
 			'<span class="nu_sub">' + sz + dt + ty + '</span></span>' +
 			(d ? '<span class="nu_go">›</span>' : '') + '</a>');
 	}
 
 	if (!shown.length)
 		h.push('<p class="nu_empty">' +
-			esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
+			nu_esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
 			'</p>');
 
 	ebi("nu_list").innerHTML = h.join("");
@@ -2286,10 +2538,10 @@ function render_grid(shown) {
 	if (vpnodes.length > 1 && ST.srch.q === null) {
 		var up = vpnodes[vpnodes.length - 2];
 		h.push('<a class="nu_tile nu_dir nu_back" href="' +
-			esc(keep(SR + "/" + up[0])) + '">' +
+			nu_esc(keep(SR + "/" + up[0])) + '">' +
 			'<span class="nu_tb">‹</span>' +
 			'<span class="nu_tk"></span>' +
-			'<span class="nu_tn">' + esc(t("nu_back")) + '</span></a>');
+			'<span class="nu_tn">' + nu_esc(t("nu_back")) + '</span></a>');
 	}
 
 	// cleared here and re-armed per tile: whether the grid is waiting on the
@@ -2309,15 +2561,15 @@ function render_grid(shown) {
 
 		h.push('<a class="nu_tile ' + (d ? "nu_dir" : "nu_file") +
 			(k && k != "dir" ? " nu_k_" + k : "") + (on ? " nu_on" : "") +
-			'" data-k="' + esc(nk) +
-			'" href="' + esc(d ? keep(f.href) : f.href) + '">' +
+			'" data-k="' + nu_esc(nk) +
+			'" href="' + nu_esc(d ? keep(f.href) : f.href) + '">' +
 			// the thumbnail sits UNDER the badge and the name, over the
 			// placeholder fill; alt is empty because the name is already
 			// on the tile as text and a screen reader must not read it
 			// twice. .nu_tfit follows the `f` in the url -- the server was
 			// asked to fit rather than crop, so the css may not crop it.
 			(th ? '<img class="nu_ti' + (want_crop() ? "" : " nu_tfit") +
-				'" alt="" src="' + esc(th) + '">' : "") +
+				'" alt="" src="' + nu_esc(th) + '">' : "") +
 			// chip_text() emits a bare entity for "no extension", exactly
 			// as it does for the list's chip, so this is not escaped there
 			// either
@@ -2331,12 +2583,12 @@ function render_grid(shown) {
 			'<span class="nu_tk">' + (ST.selmode ?
 				'<span class="nu_cb' + (on ? " on" : "") + '"></span>' : "") +
 			'</span>' +
-			'<span class="nu_tn">' + esc(nm(f)) + '</span></a>');
+			'<span class="nu_tn">' + nu_esc(nm(f)) + '</span></a>');
 	}
 
 	if (!shown.length)
 		h.push('<p class="nu_empty">' +
-			esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
+			nu_esc(t(ST.q || ST.filter != "all" ? "nu_nomatch" : "nu_empty")) +
 			'</p>');
 
 	ebi("nu_list").innerHTML = h.join("");
@@ -2373,6 +2625,11 @@ function draw() {
 	sw_close();
 
 	var shown = filtered();
+	// cached BEFORE the call and not after: render_stat can be reached
+	// again from anywhere while this one is still running (the upload
+	// branch below repaints off a timer), and a stale cache there would
+	// describe the listing the user was looking at a moment ago.
+	ST.shown = shown;
 	render_stat(shown);
 	// beside render_stat, and NOT bolted into pick_sort(): the arrow is
 	// state, and repainting it in the draw cycle is what keeps the header
@@ -2392,8 +2649,8 @@ function render_sheet() {
 		var s = SORTS[a], on = s[0] == ST.sortKey;
 		h.push('<button type="button" class="nu_sopt' + (on ? " on" : "") +
 			'" data-k="' + s[0] + '">' +
-			'<span class="nu_slab">' + esc(t(s[1])) + '</span>' +
-			'<span class="nu_shnt">' + esc(t(s[2])) + '</span>' +
+			'<span class="nu_slab">' + nu_esc(t(s[1])) + '</span>' +
+			'<span class="nu_shnt">' + nu_esc(t(s[2])) + '</span>' +
 			'<span class="nu_sdir">' + (on ? (ST.sortDir > 0 ? "↑" : "↓") : "") +
 			'</span></button>');
 	}
@@ -2413,7 +2670,8 @@ var SHEETS = {
 	nu_sheet: render_sheet,
 	nu_menu: render_menu,
 	nu_cfg: render_cfg,
-	nu_tsh: render_tsh
+	nu_tsh: render_tsh,
+	nu_upl: render_upl
 };
 
 function sheet(id, on) {
@@ -2484,16 +2742,15 @@ function sheet(id, on) {
 
 var ACTS = [
 	["up", "nu_a_up", null,
+		// the same expression mkdir carries one row below, and for the same
+		// reason: a user without write has no business being offered an
+		// upload the server would refuse. spec 0001 D2's dead button was
+		// for a thing THIS UI had not built yet -- a thing the SERVER
+		// refuses takes the show() path instead, which is the rule SACTS'
+		// delete row already states.
+		function () { return !!(perms && perms.indexOf("write") + 1); },
 		function () { return true; },
-		function () { return false; },
-		function () {
-			// upload is out to its own spec (D2): up2k.js is not a library,
-			// it drives ~47 specific element ids. until that spec lands the
-			// honest state is a visibly dead button that routes to the UI
-			// where uploading works -- not a hidden one that makes this look
-			// finished.
-			location.href = location.pathname + "?nu0";
-		}],
+		function () { sheet("nu_upl", true); }],
 
 	["mkdir", "nu_a_mkdir", null,
 		function () { return !!(perms && perms.indexOf("write") + 1); },
@@ -2563,13 +2820,13 @@ function render_acts() {
 		catch (ex) { }
 
 		h.push('<button type="button" class="nu_act nu_a_' + c[0] +
-			'" data-a="' + esc(c[0]) + '"' +
-			(c[2] ? ' aria-label="' + esc(t(c[2])) + '"' : "") +
+			'" data-a="' + nu_esc(c[0]) + '"' +
+			(c[2] ? ' aria-label="' + nu_esc(t(c[2])) + '"' : "") +
 			// aria-disabled, never the disabled attribute: a disabled button
 			// emits no click event at all, and this bar's dead button has to
 			// be tappable to say what it is waiting for.
 			(live ? "" : ' aria-disabled="true"') + '>' +
-			esc(t(c[1])) + '</button>');
+			nu_esc(t(c[1])) + '</button>');
 	}
 
 	el.innerHTML = h.join("");
@@ -2833,9 +3090,9 @@ function render_menu() {
 				continue;
 
 			rows.push('<button type="button" class="nu_mrow" data-m="' +
-				esc(m[0]) + '"' + (m[4] ? "" : " disabled") + '>' +
-				'<span class="nu_mlab">' + esc(mkey(m[1])) + '</span>' +
-				(m[2] ? '<span class="nu_mmeta">' + esc(mkey(m[2])) + '</span>' : "") +
+				nu_esc(m[0]) + '"' + (m[4] ? "" : " disabled") + '>' +
+				'<span class="nu_mlab">' + nu_esc(mkey(m[1])) + '</span>' +
+				(m[2] ? '<span class="nu_mmeta">' + nu_esc(mkey(m[2])) + '</span>' : "") +
 				'<span class="nu_mgo">\u203a</span></button>');
 		}
 
@@ -2843,7 +3100,7 @@ function render_menu() {
 		// header either -- an empty "SERVER" heading is worse than no
 		// heading, it reads as a rendering bug
 		if (rows.length)
-			h.push('<h3 class="nu_mh">' + esc(t(sec[0])) + '</h3>' +
+			h.push('<h3 class="nu_mh">' + nu_esc(t(sec[0])) + '</h3>' +
 				rows.join(""));
 	}
 
@@ -2952,8 +3209,8 @@ function cfg_row(k) {
 }
 
 function cfg_lab(m) {
-	return '<span class="nu_clab"><span class="nu_cl">' + esc(t(m[2])) +
-		'</span>' + (m[3] ? '<span class="nu_cs">' + esc(t(m[3])) +
+	return '<span class="nu_clab"><span class="nu_cl">' + nu_esc(t(m[2])) +
+		'</span>' + (m[3] ? '<span class="nu_cs">' + nu_esc(t(m[3])) +
 			'</span>' : "") + '</span>';
 }
 
@@ -2968,12 +3225,12 @@ function cfg_ctrl(m) {
 		for (a = 0; a < m[5].length; a++) {
 			o = m[5][a];
 			h.push('<button type="button" class="' + cls +
-				(o[0] === cur ? " on" : "") + '" data-c="' + esc(k) +
-				'" data-v="' + esc(o[0]) + '"' +
+				(o[0] === cur ? " on" : "") + '" data-c="' + nu_esc(k) +
+				'" data-v="' + nu_esc(o[0]) + '"' +
 				// the swatch has no text, so its name has to be its label
-				(seg ? "" : ' aria-label="' + esc(t(o[1])) + '"') +
+				(seg ? "" : ' aria-label="' + nu_esc(t(o[1])) + '"') +
 				' aria-pressed="' + (o[0] === cur ? "true" : "false") + '">' +
-				(seg ? esc(t(o[1])) : "") + '</button>');
+				(seg ? nu_esc(t(o[1])) : "") + '</button>');
 		}
 
 		return '<span class="' + (seg ? "nu_seg" : "nu_swz") + '">' +
@@ -2983,9 +3240,9 @@ function cfg_ctrl(m) {
 	if (m[0] == "lang") {
 		for (a = 0; a < LANGN.length; a++) {
 			var code = LANGN[a].slice(0, 3);
-			h.push('<option value="' + esc(code) + '"' +
+			h.push('<option value="' + nu_esc(code) + '"' +
 				(code == lang ? " selected" : "") + '>' +
-				esc(LANGN[a].slice(4)) + '</option>');
+				nu_esc(LANGN[a].slice(4)) + '</option>');
 		}
 		return '<select id="nu_clang" class="nu_csel">' + h.join("") +
 			'</select>';
@@ -3015,7 +3272,7 @@ function render_cfg() {
 				dead = m[0] == "dead";
 
 			rows.push('<' + (tgl ? "button" : "div") + ' class="nu_crow"' +
-				(tgl ? ' type="button" role="switch" data-c="' + esc(m[1]) +
+				(tgl ? ' type="button" role="switch" data-c="' + nu_esc(m[1]) +
 					'" aria-checked="' + (pref(m[1]) ? "true" : "false") + '"'
 					: "") + (dead ? " disabled" : "") + '>' +
 				cfg_lab(m) + (dead ? "" : cfg_ctrl(m)) +
@@ -3025,7 +3282,7 @@ function render_cfg() {
 		// same rule as the router: a group whose every row was gated away
 		// prints no header either
 		if (rows.length)
-			h.push('<h3 class="nu_cgh">' + esc(t(sec[0])) + '</h3>' +
+			h.push('<h3 class="nu_cgh">' + nu_esc(t(sec[0])) + '</h3>' +
 				'<div class="nu_ccard">' + rows.join("") + '</div>');
 	}
 
@@ -3037,7 +3294,7 @@ function render_cfg() {
 			// the language is a server cookie, not a preference: httpcli
 			// resolves `lang` from cplng before the template is rendered
 			// (:344), so the strings can only change on the next load.
-			setck("cplng=" + this.value, function () { location.reload(); });
+			nu_setck("cplng=" + this.value, function () { location.reload(); });
 		};
 }
 
@@ -3219,8 +3476,8 @@ function ctx_show(row, x, y) {
 		catch (ex) { }
 
 		h.push('<button type="button" role="menuitem" class="nu_ctxb" data-k="' +
-			esc(c[0]) + '"' + (ok ? "" : " disabled") + '>' +
-			esc(t(c[1])) + '</button>');
+			nu_esc(c[0]) + '"' + (ok ? "" : " disabled") + '>' +
+			nu_esc(t(c[1])) + '</button>');
 	}
 
 	el.innerHTML = h.join("");
@@ -3342,7 +3599,7 @@ function vw_meta(f, dim) {
 		p.push(dim);
 
 	if (f.sz)
-		p.push(humansize(f.sz));
+		p.push(nu_hsz(f.sz));
 
 	if (d)
 		p.push(d);
@@ -3414,7 +3671,7 @@ function render_vacts() {
 		// only place claiming otherwise.
 		if (ok)
 			h.push('<button type="button" class="nu_vact" data-v="' +
-				esc(v[0]) + '">' + esc(t(v[1])) + '</button>');
+				nu_esc(v[0]) + '">' + nu_esc(t(v[1])) + '</button>');
 	}
 
 	ebi("nu_vwa").innerHTML = h.join("");
@@ -3444,7 +3701,7 @@ function vw_draw() {
 
 	// textContent and not innerHTML, all three: a file name is user input,
 	// and the only thing this file ever hands to innerHTML is a string it
-	// built itself out of esc()
+	// built itself out of nu_esc()
 	ebi("nu_vwn").textContent = nm(f);
 	ebi("nu_vwm").textContent = vw_meta(f, null);
 	ebi("nu_vwc").textContent = (ST.vi + 1) + " / " + list.length;
@@ -3856,7 +4113,7 @@ function tree_node_html(n) {
 	// it to open
 	if (n.dead)
 		return h + '<span class="nu_tw"></span><span class="nu_tl" title="' +
-			esc(t("tree_gone")) + '">' + esc(n.name) + '</span></li>';
+			nu_esc(t("tree_gone")) + '">' + nu_esc(n.name) + '</span></li>';
 
 	// only the chevron expands. the rest of the node navigates, through
 	// keep() so the ?nu mode survives -- keep() already appends &nu rather
@@ -3864,9 +4121,9 @@ function tree_node_html(n) {
 	var href = SR + "/" + (n.ev ? n.ev + "/" : "") + (n.key ? "?k=" + n.key : "");
 
 	h += '<button type="button" class="nu_tw' + (open ? " on" : "") +
-		'" data-vp="' + esc(n.vp) + '" aria-expanded="' + (open ? "true" : "false") +
+		'" data-vp="' + nu_esc(n.vp) + '" aria-expanded="' + (open ? "true" : "false") +
 		'">&rsaquo;</button>' +
-		'<a class="nu_tl" href="' + esc(keep(href)) + '">' + esc(n.name) + '</a>';
+		'<a class="nu_tl" href="' + nu_esc(keep(href)) + '">' + nu_esc(n.name) + '</a>';
 
 	if (open && n.kids)
 		h += '<ul class="nu_tul">' + tree_kids_html(n.kids) + '</ul>';
@@ -3886,7 +4143,7 @@ function render_tree(el) {
 	if (!ST.tree.root)
 		return;
 
-	el.innerHTML = '<h2 class="nu_th">' + esc(t("tree_h")) + '</h2>' +
+	el.innerHTML = '<h2 class="nu_th">' + nu_esc(t("tree_h")) + '</h2>' +
 		'<ul class="nu_tul nu_troot">' + tree_node_html(ST.tree.root) + '</ul>';
 
 	el.onclick = function (e) {
@@ -4050,12 +4307,12 @@ function render_tsh() {
 
 	var el = ebi("nu_tshb");
 	if (!ST.tree.root)
-		el.innerHTML = '<p class="nu_empty">' + esc(t("nu_tsh_wait")) + '</p>';
+		el.innerHTML = '<p class="nu_empty">' + nu_esc(t("nu_tsh_wait")) + '</p>';
 
 	tree_get(function (err) {
 		if (err)
 			return (el.innerHTML =
-				'<p class="nu_empty">' + esc(t("nu_tsh_err")) + '</p>');
+				'<p class="nu_empty">' + nu_esc(t("nu_tsh_err")) + '</p>');
 
 		render_tree(el);
 	});
@@ -4125,7 +4382,7 @@ function set_dots(v) {
 	// (httpcli.py:7435), so `dots=` -- the empty value that expires it -- is
 	// how it is turned off. `dots=y` matches what the classic UI writes
 	// (browser.js:6983), so the two UIs agree on the first paint too.
-	setck("dots=" + (v ? "y" : ""));
+	nu_setck("dots=" + (v ? "y" : ""));
 
 	tree_reset();
 
@@ -4134,6 +4391,747 @@ function set_dots(v) {
 			take(ls);
 	});
 }
+
+// -- the upload panel --------------------------------------------------
+//
+// spec 0003 D2: the fifth tenant of sheet(), and the only one whose body is
+// generated rather than written in nu.html. up2k.js is not a library -- it
+// drives ~47 specific element ids, and it dereferences most of them with no
+// guard at all -- so the panel is that markup, regenerated here, and the
+// sheet is only the container it lives in.
+
+function render_upl() {
+	mount_upl();
+}
+
+// written once, on the sheet's first open, and never again: up2k.js binds
+// its handlers to these exact nodes, so a second innerHTML would hand it a
+// panel it no longer knows -- the same rule #nu_head and #nu_cfgt live by,
+// one level up.
+var upl_up = false;
+
+function mount_upl() {
+	if (upl_up)
+		return;
+
+	upl_up = true;
+
+	// the `act` class is not decoration and not layout. QS('#op_up2k.act')
+	// at up2k.js:3491 is the ONLY thing on the page that calls goto_up2k()
+	// -> up2k.init_deps() (:24), which is what imports the main-thread
+	// hasher fallback (:846). without the class the panel still works
+	// wherever crypto.subtle is available -- got_deps() short-circuits at
+	// :835 -- and silently loses its fallback everywhere else, over plain
+	// http, on exactly the browsers that tier exists for. :3335 writes to
+	// #op_up2k unguarded as well.
+	ebi("nu_uplb").innerHTML =
+		'<div id="op_up2k" class="act">\n' +
+		'<div id="u2err"></div>\n' +
+		upl_htm() +
+		'</div>\n' +
+		'<button type="button" class="nu_u2more" aria-expanded="false"></button>\n' +
+		upl_sw_htm();
+
+	mount_disc();
+	mount_furn();
+
+	// the seam: everything up2k.js is owed now exists, and nothing has
+	// been fetched yet. a miss here ABORTS the mount and names the missing
+	// id, selector or symbol in the sheet the user is already looking at --
+	// which is a loud failure at the moment that matters, instead of a
+	// stack trace out of a file nu did not write, thrown at the top level
+	// of a script tag where nothing can catch it.
+	//
+	// upl_up stays true: the markup a second open would generate is the
+	// same markup, so retrying can only fail identically -- and it would
+	// wipe the name off the screen on its way there.
+	//
+	// the string is not translated, on purpose. it is a tripwire for
+	// whoever is changing the classic UI, not a message for the person
+	// uploading a file.
+	var miss = check_upl();
+	if (miss) {
+		ebi("nu_uplb").textContent = "up2k contract broken, missing: " + miss;
+		return;
+	}
+
+	load_upl();
+}
+
+// the switches disclosure, and the reason it is ONE CLASS on the panel
+// root instead of a second innerHTML.
+//
+// every switch up2k owns is rendered, always -- bcfg_get returns defval
+// WITHOUT READING STORAGE when the element is absent (util.js:1314-1317),
+// so a switch this panel chose not to draw is not merely undrawn, it
+// silently discards the value the user saved, on every single load. so the
+// panel a phone gets is one button and a queue, and the twelve switches
+// plus the #u2conf row are one tap away and still in the dom the whole
+// time: nu.css hides them behind `.nu_more` and ORDERS both of them to
+// land directly under this button, which is why #u2conf being written at
+// the top of the panel (up2k's wide layout needs its cells there) costs
+// nothing here.
+//
+// the label is nu's one new string of this spec. aria-expanded is written
+// on both sides, because a disclosure that never says it closed again is
+// worse than one that never said it opened.
+function mount_disc() {
+	var b = document.querySelector("#nu_uplb .nu_u2more");
+	if (!b)
+		return;
+
+	b.textContent = t("nu_u2_more");
+	b.onclick = function () {
+		var on = ebi("nu_uplb").classList.toggle("nu_more");
+		b.setAttribute("aria-expanded", on ? "true" : "false");
+	};
+}
+
+// up2k's own stylesheet, and the one line of this card a reader is most
+// likely to "tidy up": it is
+// document.head.insertBefore(link, document.head.firstChild), and NOT
+// appendChild.
+//
+// cascade order for author sheets follows the document order of their
+// elements, not the order they were inserted. ui.css:1-9 is a :root block
+// declaring --fg: #ccc, and nu.css:23 declares --fg at the very same
+// specificity -- so document order is the whole tiebreak. APPENDED, this
+// link would sit after nu.css (nu.html:9) and after the admin's {{ css }}
+// override (nu.html:11-13), win every one of those ties, and repaint every
+// nu surface reading var(--fg) to #ccc from the first open of this sheet
+// until the page is reloaded. INSERTED FIRST, nu.css and the override win
+// every tie instead, while ui.css's rules for #tt, #toast, #toastb and
+// #modal -- which nu.css does not define at all, so there is no tie to
+// win -- still apply, and those four are what up2k's tooltips, its toasts
+// and its own "loading sha512.hw.js" modal are drawn with.
+//
+// two of ui.css's rules do reach nu's chrome with no tie to lose. nu.css
+// answers those at the same specificity rather than here; see its "what
+// ui.css reaches for" block.
+//
+// util.js has no import_css -- only import_js (util.js:442-456) -- so this
+// is nu's own three lines and not a reuse.
+function inject_ui_css() {
+	var link = document.createElement("link");
+	link.rel = "stylesheet";
+	link.media = "screen";
+
+	// insurance, and nothing more: the default --csp-ui is
+	// `script-src 'unsafe-eval' 'nonce-...'; worker-src 'self'`
+	// (__main__.py:1706) -- no style-src and no default-src, so stylesheets
+	// are unrestricted today. this is for the admin who has tightened it.
+	if (window.JS_NONCE)
+		link.nonce = JS_NONCE;
+
+	link.href = SR + "/.cpr/w/ui.css?_=" + TS;
+	document.head.insertBefore(link, document.head.firstChild);
+}
+
+// the loader: three files, in an order that two mechanisms in the tree
+// force, and getting either wrong fails in silence (spec 0003 D6).
+//
+// it runs once per page life, behind mount_upl's flag, and only after
+// check_upl has passed -- nothing is fetched until the contract is known
+// to hold, so a contract miss is named before a byte goes over the wire.
+function load_upl() {
+	// up2k.js declares `up2k = null` (:30) and resolves it asynchronously
+	// through crypto.subtle.digest (:40-44), so between the tap and a
+	// working panel there is a window -- brief on a warm cache, not brief
+	// on a cold one over a slow link -- where the markup is on screen and
+	// every control in it is dead. nu shows a word instead.
+	upl_wait(t("nu_u2_load"));
+
+	inject_ui_css();
+
+	// util.js:310-311 is `if (!window.Ls || !window.langmod) var Ls = {};`
+	// and BOTH halves must be false or the dictionary is wiped. nu.html:257
+	// declares `var Ls = {}` and the tl tag at :282 fills it, so window.Ls
+	// is truthy -- but window.langmod is undefined, the condition holds,
+	// and util.js resets Ls to an empty object. `L` (:229) keeps its own
+	// reference and survives, so t()'s first branch still answers: the
+	// failure is INVISIBLE on eng, where L *is* Ls.eng, and total on any
+	// other language, where t() falls through to Ls.eng[k] for every key
+	// the active tl file does not carry -- which is every nu_* key.
+	//
+	// the `|| ` is not defensive noise. langmod is the translator tooling's
+	// own hook (scripts/tl.js:12, scripts/tl.py:52), delivered through the
+	// --js slot nu.html:286 emits AFTER nu.js -- so a bare assignment here
+	// would replace a real langmod with a no-op and break translating
+	// against nu, months from now, silently.
+	window.langmod = window.langmod || function () { };
+
+	// util.js:2352 calls bchrome() at top level and unconditionally.
+	// nu.html:8 has a <meta name=theme-color>, so it does not early-return;
+	// cprop('--bg-u3') resolves empty (neither nu.css nor ui.css declares
+	// it) and <html> carries no `y` class (nu themes through a data-thm
+	// attribute), so the fallback branch always wins and it writes the
+	// literal #333 over the volume's admin-configured tcolor
+	// (httpcli.py:347). nu never re-renders that meta -- it is
+	// server-rendered once -- so the loss would last the page's life.
+	// read it here, write it back the instant util.js has run.
+	var meta = document.querySelector('meta[name=theme-color]'),
+		tcolor = meta && meta.getAttribute("content");
+
+	upl_js(SR + "/.cpr/w/util.js", function () {
+		if (meta && tcolor !== null)
+			meta.setAttribute("content", tcolor);
+
+		// on util.js's onload, and NOT as a second call in a row. up2k.js
+		// is "use strict" (:1) and dies inside its very first IIFE (:5-14)
+		// on the bare `nosubtle` -- the assignment at :8 or the read at
+		// :9 -- which exists only once util.js:16-17 has sprayed CGV1;
+		// CHROME / FIREFOX / VCHROME on the lines below are util.js's too.
+		//
+		// from here on the injector is util.js's own import_js, which
+		// stamps JS_NONCE itself (util.js:446-447) -- the whole point of
+		// nu.html carrying that global.
+		import_js(SR + "/.cpr/w/up2k.js", upl_poll, upl_eload);
+	}, upl_eload);
+}
+
+// the one script nu injects itself, for the flat reason that import_js
+// lives in the file being injected. same shape as util.js:441-456, minus
+// the toast it cannot reach yet.
+function upl_js(url, cb, ecb) {
+	var s = document.createElement("script");
+	s.type = "text/javascript";
+	if (window.JS_NONCE)
+		s.nonce = JS_NONCE;
+
+	s.src = url + "?_=" + TS;
+	s.onload = cb;
+	s.onerror = ecb;
+	document.head.appendChild(s);
+}
+
+// the panel has to BE in the DOM while all this loads -- up2k.js binds to
+// it at top level -- so the loading state hides #nu_uplb rather than
+// replacing it. the inline display goes on nu's own container and nothing
+// else: every node up2k.js owns is inside it and keeps its own style
+// untouched, and up2k's init measures nothing a hidden ancestor changes
+// (onresize, up2k.js:3062-3086, reads window.innerWidth and #ops's
+// font-size, and #ops is a child of <body>).
+//
+// an empty msg is "done": the word goes, the panel comes back.
+function upl_wait(msg) {
+	var b = ebi("nu_uplb"), w = ebi("nu_uplw");
+
+	if (!msg) {
+		if (w)
+			w.parentNode.removeChild(w);
+
+		b.style.display = "";
+		return;
+	}
+
+	if (!w) {
+		w = document.createElement("p");
+		w.id = "nu_uplw";
+		w.className = "nu_empty";
+		b.parentNode.insertBefore(w, b);
+	}
+
+	w.textContent = msg;
+	b.style.display = "none";
+}
+
+function upl_eload() {
+	upl_wait(t("nu_u2_eload"));
+}
+
+// up2k.js:30 starts `up2k` at null and :40-44 assign it out of a promise;
+// it also legitimately ends up FALSE on a browser too old for up2k, which
+// still gets the basic uploader -- so the test is against null and
+// undefined, never truthiness.
+function upl_poll() {
+	if (window.up2k === null || window.up2k === undefined)
+		return setTimeout(upl_poll, 50);
+
+	upl_wait("");
+}
+
+// the four things up2k.js reaches for that are NOT inside the panel, and
+// cannot be: the drop overlay covers the window, and the tab bar and #repl
+// are the classic UI's page chrome.
+//
+// they go on <body>, not in the sheet, because #drops is a full-window
+// overlay and a sheet is a box -- a drop target nested in a hidden dialog
+// is a drop target that never sees a drag.
+//
+// nothing here is hidden from JS: the display:none belongs in nu.css (a
+// later card), because #drops is toggled by up2k.js through a `vis` CLASS
+// (up2k.js:1143 and on), and an inline style would win over that class and
+// leave the overlay invisible for good. what keeps these nodes off a
+// listing nobody asked to upload from is that mount_upl runs on the
+// sheet's first open and not at boot.
+function mount_furn() {
+	// drag & drop is not a later commit: the nodes exist before the panel
+	// initializes or nothing does -- ebi('up_dz'), ebi('srch_dz') and
+	// ebi('drops') are dereferenced at the top level of up2k_init
+	// (up2k.js:1143, :1150). the <span> inside each .dropdesc is contract
+	// too: the first dragenter does up.querySelector('span').textContent
+	// with no guard (:1050, :1059), so an empty <div id="up_zd"> passes an
+	// id sweep and throws on the first drag -- which is precisely the
+	// gesture 0002 deferred to this spec. shape copied from
+	// browser.js:963-968.
+	var o = document.createElement("div");
+	o.innerHTML = (
+		'<div id="drops">\n' +
+		'	<div class="dropdesc" id="up_zd"><div>🚀 ' + L.udt_up + '<br /><span></span><div>🚀<b>' + L.udt_up + '</b></div><div><b>' + L.udt_up + '</b>🚀</div></div></div>\n' +
+		'	<div class="dropdesc" id="srch_zd"><div>🔎 ' + L.udt_srch + '<br /><span></span><div>🔎<b>' + L.udt_srch + '</b></div><div><b>' + L.udt_srch + '</b>🔎</div></div></div>\n' +
+		'	<div class="dropzone" id="up_dz" v="up_zd"></div>\n' +
+		'	<div class="dropzone" id="srch_dz" v="srch_zd"></div>\n' +
+		'</div>' +
+
+		// the tab bar nu never shows, and it earns its place twice. Donut
+		// resolves QS('#ops a[data-dest="up2k"]') with no guard
+		// (up2k.js:638-640) and stores its textContent before overwriting
+		// the anchor with the donut svg -- so the anchor needs text, and
+		// the anchor is what keeps Donut.do's progress callback firing
+		// (:687, :698-699), which is the feed nu's own progress line reads.
+		// onresize also parses getComputedStyle(ebi('ops'))['font-size']
+		// (:3064-3066), which resolves fine on a display:none element.
+		// the anchor is a DIRECT child because goto() matches '#ops>a'.
+		'<div id="ops"><a href="#" data-dest="up2k">⬆</a></div>' +
+
+		// read for .offsetTop at up2k.js:396 and :1963, both unguarded
+		'<a href="#" id="repl">π</a>'
+	);
+
+	while (o.firstChild)
+		document.body.appendChild(o.firstChild);
+}
+
+// the panel, in the nesting browser.js:868-947 uses, and the nesting is
+// contract and not layout: up2k's onresize (up2k.js:3062-3086) MOVES #u2btn
+// between #u2btn_ct and #u2btn_cw and #u2etaw/#u2cards between #u2c3t and
+// #u2c3w, and decides which way to move by comparing parentNode. start it
+// anywhere else and the first resize either does nothing or undoes itself.
+//
+// the strings are read off `L` directly, never through t(). these are not
+// nu's strings -- they are the classic UI's, all 140 of them in Ls.eng
+// since Card 1 -- and up2k.js dereferences the very same keys off `L` two
+// lines after this markup lands, so a per-key fallback here would only hide
+// a gap that surfaces anyway.
+//
+// data-perm / data-dep are kept verbatim although nu's apply_perms (the
+// shim) ignores them: they cost nothing, and they are how a later card can
+// hide the read-only half of the table without inventing a second vocabulary.
+function upl_htm() {
+	return (
+		'<form id="u2form" method="post" enctype="multipart/form-data"></form>\n' +
+
+		'<table id="u2conf">\n' +
+		'	<tr>\n' +
+		'		<td class="c" data-perm="read"><br />' + L.ul_par + '</td>\n' +
+		'		<td class="c" rowspan="2">\n' +
+		'			<input type="checkbox" id="multitask" />\n' +
+		'			<label for="multitask" tt="' + L.ut_mt + '">🏃</label>\n' +
+		'		</td>\n' +
+		'		<td class="c" rowspan="2">\n' +
+		'			<input type="checkbox" id="potato" />\n' +
+		'			<label for="potato" tt="' + L.ut_pot + '">🥔</label>\n' +
+		'		</td>\n' +
+		'		<td class="c" rowspan="2">\n' +
+		'			<input type="checkbox" id="u2rand" />\n' +
+		'			<label for="u2rand" tt="' + L.ut_rand + '">🎲</label>\n' +
+		'		</td>\n' +
+		// the label is contract, not decoration: set_ow (up2k.js:921, run
+		// during init at :935) does QS('label[for="u2ow"]').innerHTML with
+		// no guard, and the same is true of label[for="fsearch"] in
+		// set_fsearch. neither is an id, so neither shows up in an id sweep.
+		'		<td class="c" rowspan="2">\n' +
+		'			<input type="checkbox" id="u2ow" />\n' +
+		'			<label for="u2ow" tt="' + L.ut_ow + '">?</label>\n' +
+		'		</td>\n' +
+		'		<td class="c" data-perm="read" data-dep="idx" rowspan="2">\n' +
+		'			<input type="checkbox" id="fsearch" />\n' +
+		'			<label for="fsearch" tt="' + L.ut_srch + '">🔎</label>\n' +
+		'		</td>\n' +
+		'		<td data-perm="read" rowspan="2" id="u2btn_cw"></td>\n' +
+		'		<td data-perm="read" rowspan="2" id="u2c3w"></td>\n' +
+		'	</tr>\n' +
+		'	<tr>\n' +
+		'		<td class="c" data-perm="read">\n' +
+		'			<a href="#" class="b" id="nthread_sub">&ndash;</a><input\n' +
+		'				class="txtbox" id="nthread" value="" tt="' + L.ut_par + '"/><a\n' +
+		'				href="#" class="b" id="nthread_add">+</a><br />&nbsp;\n' +
+		'		</td>\n' +
+		'	</tr>\n' +
+		'</table>\n' +
+
+		'<div id="u2notbtn"></div>\n' +
+
+		'<div id="u2btn_ct">\n' +
+		'	<div id="u2btn" tabindex="0">\n' +
+		'		<span id="u2bm"></span>\n' + L.ul_btn +
+		'	</div>\n' +
+		'</div>\n' +
+
+		'<div id="u2c3t">\n' +
+
+		'<div id="u2etaw"><div id="u2etas"><div class="o">\n' +
+		L.ul_hash + ': <span id="u2etah" tt="' + L.ut_etah + '">(' + L.ul_idle1 + ')</span><br />\n' +
+		L.ul_send + ': <span id="u2etau" tt="' + L.ut_etau + '">(' + L.ul_idle1 + ')</span><br />\n' +
+		'	</div><span class="o">' +
+		L.ul_done + ': </span><span id="u2etat" tt="' + L.ut_etat + '">(' + L.ul_idle1 + ')</span>\n' +
+		'</div></div>\n' +
+
+		'<div id="u2cards">\n' +
+		'	<a href="#" act="ok" tt="' + L.uct_ok + '">ok <span>0</span></a><a\n' +
+		'	href="#" act="ng" tt="' + L.uct_ng + '">ng <span>0</span></a><a\n' +
+		'	href="#" act="done" tt="' + L.uct_done + '">done <span>0</span></a><a\n' +
+		'	href="#" act="bz" tt="' + L.uct_bz + '" class="act">busy <span>0</span></a><a\n' +
+		'	href="#" act="q" tt="' + L.uct_q + '">que <span>0</span></a>\n' +
+		'</div>\n' +
+
+		'</div>\n' +
+
+		'<div id="u2tabw" class="na"><table id="u2tab">\n' +
+		'	<thead>\n' +
+		'		<tr>\n' +
+		'			<td>' + L.utl_name + ' &nbsp;(<a href="#" id="luplinks">' + L.utl_ulist + '</a>/<a href="#" id="cuplinks">' + L.utl_ucopy + '</a>' + L.utl_links + ')</td>\n' +
+		'			<td>' + L.utl_stat + '</td>\n' +
+		'			<td>' + L.utl_prog + '</td>\n' +
+		'		</tr>\n' +
+		'	</thead>\n' +
+		'	<tbody></tbody>\n' +
+		'</table><div id="u2mu"></div></div>\n' +
+
+		'<p id="u2flagblock"><b>' + L.ul_flagblk + '</p>\n' +
+		'<div id="u2life"></div>' +
+		'<div id="u2foot"></div>'
+	);
+}
+
+// the twelve switches of browser.js:1035-1053, plus #ico1.
+//
+// ALL TWELVE, ALWAYS, whatever the volume allows and whatever the panel
+// shows: bcfg_get returns defval without touching storage when the element
+// is missing (util.js:1314-1317), so an omitted switch does not merely fail
+// to render -- it silently throws away the value the user saved, on every
+// single load. this is the one block here where "render only what is
+// relevant" is a data-loss bug.
+//
+// #ico1 is in for the opposite reason: ebi('ico1').onclick is assigned at
+// up2k.js:3482, top level, unguarded. its three inputs (icot/icof/icob) are
+// NOT -- scfg_bind guards on `if (el)` (util.js:1371) -- and they are the
+// favicon's, not the uploader's, so they stay out.
+//
+// NOAC is util.js:25 and util.js is not loaded when this runs, so the two
+// attributes are written out. browser.js's stray </td> inside these <div>s
+// is dropped rather than copied: it is a leftover of an older table and the
+// parser discards it anyway.
+function upl_sw_htm() {
+	return (
+		'<div id="nu_uplsw">\n' +
+		'	<h3>' + L.cl_uopts + '</h3>\n' +
+		'	<div>\n' +
+		'		<a id="ask_up" class="tgl btn" href="#" tt="' + L.ut_ask + '</a>\n' +
+		'		<a id="u2ts" class="tgl btn" href="#" tt="' + L.ut_u2ts + '</a>\n' +
+		'		<a id="umod" class="tgl btn" href="#" tt="' + L.cut_umod + '</a>\n' +
+		'		<a id="hashw" class="tgl btn" href="#" tt="' + L.cut_mt + '</a>\n' +
+		'		<a id="nosubtle" class="tgl btn" href="#" tt="' + L.cut_wasm + '</a>\n' +
+		'		<a id="u2turbo" class="tgl btn ttb" href="#" tt="' + L.cut_turbo + '</a>\n' +
+		'		<a id="u2tdate" class="tgl btn ttb" href="#" tt="' + L.cut_datechk + '</a>\n' +
+		'		<input type="text" id="u2szg" value="" autocorrect="off" autocapitalize="off" style="width:3em" tt="' + L.cut_u2sz + '" />\n' +
+		'		<a id="flag_en" class="tgl btn" href="#" tt="' + L.cut_flag + '">💤</a>\n' +
+		'		<a id="u2sort" class="tgl btn" href="#" tt="' + L.cut_az + '">az</a>\n' +
+		'		<a id="upnag" class="tgl btn" href="#" tt="' + L.cut_nag + '">🔔</a>\n' +
+		'		<a id="upsfx" class="tgl btn" href="#" tt="' + L.cut_sfx + '">🔊</a>\n' +
+		'	</div>\n' +
+		'	<h3>' + L.cl_favico + ' <span id="ico1">🎉</span></h3>\n' +
+		'</div>'
+	);
+}
+
+// -- the contract self-check -------------------------------------------
+//
+// the tripwire spec 0003 D3 asks for. this repo has no JS harness --
+// tests/ is python-only and CI runs `python -m unittest discover -s
+// tests` -- so the boundary check ships inside nu.js, and runs on the
+// sheet's first open, between the mount and the injection: a contract
+// miss is named before a byte of up2k.js is fetched, instead of arriving
+// later as a stack trace from inside a file nu did not write.
+//
+// the id list below is the CHECKED SET of the plan's "The contract, in
+// one place" -- the markup nu is replacing, plus every unguarded
+// dereference in up2k.js. it is deliberately NOT
+// `grep -oE "ebi\('...'\)" up2k.js`: that grep returns 47 ids and is
+// wrong in both directions. two of its hits are commented out and dead,
+// and it misses u2btn_ct / u2c3t / u2btn_cw, which onresize reaches
+// through a computed argument (up2k.js:3069, :3078), plus all twelve
+// switches, which arrive through bcfg_bind/fcfg_bind inside util.js.
+//
+// THREE THINGS THIS STRUCTURALLY CANNOT CHECK. each is deliberate, and
+// none of the three is a gap to be closed later:
+//
+//  1. what up2k.js creates for ITSELF -- u2depmsg (:854), actx_go
+//     (:1585), undor (:3222), nagtest (:3430), u2depotato/u2enpotato
+//     (:441-442). they do not exist when this runs, and demanding them
+//     would be demanding that up2k.js has already been loaded, which is
+//     precisely what this check gates.
+//
+//  2. the ids that only exist once an L STRING renders -- lifem, lifeh,
+//     lifew, u2nah, u2yea. no markup can supply them: they are inside the
+//     strings of card 1's slice, and up2k.js writes those strings into
+//     the DOM itself.
+//
+//  3. the two ids that are DEAD in the source and must never be added
+//     back -- acc_info (up2k.js:1646) and lifes (:3264), both commented
+//     out. a list built from the grep demands two nodes nothing reads.
+//
+// the live walk in the plan's Verification covers the first two.
+
+var UPL_IDS = [
+	// the panel (browser.js:868-947)
+	"u2form", "u2conf", "multitask", "potato", "u2rand", "u2ow", "fsearch",
+	"u2btn_cw", "u2c3w", "nthread_sub", "nthread", "nthread_add",
+	"u2notbtn", "u2btn_ct", "u2btn", "u2bm", "u2c3t", "u2etaw", "u2etas",
+	"u2etah", "u2etau", "u2etat", "u2cards", "u2tabw", "u2tab", "luplinks",
+	"cuplinks", "u2mu", "u2flagblock", "u2life", "u2foot",
+
+	// the drop overlay (browser.js:960-971) -- up_dz, srch_dz and drops
+	// are dereferenced unguarded at up2k.js:1143 and :1150
+	"drops", "up_zd", "srch_zd", "up_dz", "srch_dz",
+
+	// the twelve upload switches (browser.js:1035-1053), every one of
+	// them: bcfg_get returns defval without touching storage when the
+	// element is missing, so an omitted switch silently discards the
+	// value the user saved, on every load
+	"ask_up", "u2ts", "umod", "hashw", "nosubtle", "u2turbo", "u2tdate",
+	"u2szg", "flag_en", "u2sort", "upnag", "upsfx",
+
+	// the page furniture: u2err (up2k.js:867-872, inside setmsg),
+	// op_up2k (:3335, :3491), repl (:396 and :1963, both .offsetTop),
+	// ops (:3064-3066, getComputedStyle), ico1 (:3482, top level)
+	"u2err", "op_up2k", "repl", "ops", "ico1"
+];
+
+// the four nodes an id sweep cannot see, each dereferenced with no guard:
+// the tab-bar anchor Donut resolves (up2k.js:638), the <span> inside each
+// .dropdesc that the first dragenter writes into (:1050-1051, :1059-1060)
+// and the two labels set_ow (:921) and set_fsearch reach through QS().
+var UPL_SELS = [
+	'#ops a[data-dest="up2k"]',
+	"#up_zd span",
+	"#srch_zd span",
+	'label[for="u2ow"]',
+	'label[for="fsearch"]'
+];
+
+// the ten reaches of spec 0003 D3 part 2, as twelve names -- treectl,
+// fileman, msel and mp are checked as names and not as shapes, because a
+// name that is present with the wrong shape is a nu bug and not a
+// contract drift.
+var UPL_SYMS = [
+	"treectl", "fileman", "msel", "mp", "wintitle", "go2up2k", "go2bup",
+	"goto", "start_actx", "actx", "ACtx", "apply_perms"
+];
+
+// returns the name of the FIRST thing missing, or "" when the contract
+// holds. it never throws: a check that dies is a check that reports
+// nothing, and the panel it was gating half-boots anyway.
+function check_upl() {
+	var a;
+
+	for (a = 0; a < UPL_SYMS.length; a++)
+		// `in`, and not truthiness: actx is legitimately null until
+		// something calls start_actx(), and that null IS the contract
+		if (!(UPL_SYMS[a] in window))
+			return UPL_SYMS[a];
+
+	for (a = 0; a < UPL_IDS.length; a++)
+		if (!ebi(UPL_IDS[a]))
+			return UPL_IDS[a];
+
+	for (a = 0; a < UPL_SELS.length; a++)
+		if (!document.querySelector(UPL_SELS[a]))
+			return UPL_SELS[a];
+
+	// two conditions the arrays above cannot express, both contract:
+	//
+	// the tab-bar anchor needs TEXT, not just existence -- Donut stores
+	// its textContent as the `ico` attribute and writes it back when the
+	// queue drains (up2k.js:638-640, :686), so an empty anchor is a donut
+	// that never turns back into a tab.
+	if (!document.querySelector('#ops a[data-dest="up2k"]').textContent)
+		return '#ops a[data-dest="up2k"] (empty textContent)';
+
+	// and #op_up2k needs the `act` class: QS('#op_up2k.act') at
+	// up2k.js:3491 is the only thing on the page that calls goto_up2k()
+	// -> init_deps(), the main-thread hasher fallback.
+	if (!ebi("op_up2k").classList.contains("act"))
+		return "op_up2k (no act class)";
+
+	return "";
+}
+
+// -- the browser.js shim -----------------------------------------------
+//
+// up2k.js is not a library: it is written against browser.js, and reaches
+// through it for exactly ten symbols (spec 0003 D3 part 2, a table of ten
+// reaches). nu does not load browser.js -- 9.6k lines of the classic UI --
+// so this row of stand-ins is the whole boundary between the two files.
+//
+// it is a BOUNDARY and not a seam, and two of the ten are why: `goto` is
+// 36 lines of tab router and `apply_perms` is 117 lines that write to
+// <html> and <body>. Both are REPLACED here, not proxied.
+//
+// installed on `window` at load, BEFORE anything is injected. util.js:26's
+// bare `var treectl, thegrid, up2k, ...` does not reset a binding that
+// already exists, so installing first is safe -- and installing after the
+// injection would be a race with a file that calls two of these at its own
+// top level.
+
+// treectl.onscroll is called at up2k.js:57 -- top level, before any
+// function of the page has run -- and is NOT inside a try. it must exist,
+// and nu has no navpane to scroll, so it does nothing.
+//
+// treectl.goto IS inside the bare try at up2k.js:1872-1876, so it would be
+// safe to omit -- but it is the call that re-lists the folder when a queue
+// drains, which is the behavior nu wants: a finished upload should appear
+// in the list. so it is nu's own re-fetch of the listing we are standing
+// in, the same two lines set_dots ends with.
+window.treectl = {
+	onscroll: function () { },
+	goto: function () {
+		fetch_ls(location.pathname, function (err, ls) {
+			if (!err)
+				take(ls);
+		});
+	}
+};
+
+// up2k.js:3496, top level, guarded only by `if (ls0)` -- and nu's own
+// take() already redrew the list one function up, so there is nothing for
+// a second renderer to do.
+window.fileman = { render: function () { } };
+
+// both are read only inside that same try at up2k.js:1873, and both are
+// kept for one reason: the guard there is
+// `!msel.getsel().length && (!mp.au || mp.au.paused)`, so an empty
+// selection and a silent player are what let treectl.goto() be reached.
+// nu has no music player at all, hence null.
+window.msel = { getsel: function () { return []; } };
+window.mp = { au: null };
+
+// the progress feed D2 asks for, and the reason it is a shim and not a
+// console.log: Donut.do formats "{0}%, {1}, #{2}, " and calls this once a
+// second while a queue is busy (up2k.js:712-713), and Donut.on(false)
+// calls it with NO ARGUMENT when the queue drains (:691). so `undefined`
+// is not a missing string, it is the drain, and ST.upl is null exactly
+// when nothing is uploading. card 5's status line renders from it.
+//
+// browser.js:9636-9646 is the shape for the title itself. `noname` is the
+// classic UI's "leave the server name off this one" flag; nu puts no
+// server name in its title, so the argument is accepted and ignored.
+var upl_tpt = 0;
+
+window.wintitle = function (txt, noname) {
+	ST.upl = txt === undefined ? null : txt;
+	document.title = ((txt || "") + here_path().split("/").pop()) || "copyparty";
+
+	// and the status line goes with the title. this is the only pump nu has
+	// while a queue is running -- draw() is not called, nothing is being
+	// navigated -- so the repaint has to hang off the one call up2k already
+	// makes, and it hangs off it at ARM'S LENGTH: ST.shown is what draw()
+	// last handed render_stat, so the line keeps describing the folder it
+	// was describing without a second filtered().
+	//
+	// once a second, and not once per Donut frame. Donut.do already
+	// throttles itself to every tenth tick (up2k.js:711), but that is
+	// up2k's ratio to keep, not nu's to inherit -- and the DRAIN is exempt
+	// on purpose: the frame where ST.upl goes null is the one frame this
+	// line must never sit on, or it keeps the last percentage forever.
+	var now = Date.now();
+	if (ST.upl !== null && now - upl_tpt < 1000)
+		return;
+
+	upl_tpt = now;
+	render_stat(ST.shown || []);
+};
+
+// an INERT ROUTE GUARD, not a proxy. browser.js:1169-1203 resolves
+// QS('#ops>a[data-dest=' + dest + ']') and dereferences it (:1178-1179),
+// toggles #op_<dest> (:1192), dispatches window['goto_' + dest]
+// (:1194-1196), writes clmod(document.documentElement, 'op_open', dest)
+// (:1200 -- a class nu.css has no rule for) and calls treectl.onscroll().
+//
+// nu has no opview tabs, so all this version does is dispatch the
+// goto_<dest> hook when one exists. that dispatch is not optional: it is
+// how goto('up2k') still reaches goto_up2k() -> up2k.init_deps()
+// (up2k.js:24), which imports the main-thread hasher fallback.
+//
+// everything else is deliberately absent -- no navigation, no class on
+// <html>, and NO THROW when dest is undefined. three of up2k.js's five
+// call sites fire unconditionally at init: :863 for a read-less
+// write-only user, :3500 -- which passes no argument at all -- and :3504,
+// replaying sread('opmode') from a previous CLASSIC-UI session, a stale
+// localStorage key that must not steer this page anywhere.
+window.goto = function (dest) {
+	var fn = window["goto_" + dest];
+	if (fn)
+		fn();
+};
+
+// browser.js:1204-1205's shape. up2k.js:879-880 binds these two to the
+// u2yea / u2nah anchors of the https-warning modal, which arrive inside
+// card 1's L strings.
+window.go2up2k = function () { window.goto("up2k"); };
+window.go2bup = function () { window.goto("bup"); };
+
+// the AudioContext keep-alive hack, copied in shape from browser.js:1275
+// and :2760-2782: an alive actx keeps the tab's timers off the background
+// throttle, which is worth ~1s per subtle.digest resolve while hashing
+// unfocused. up2k.js calls start_actx() from eleven places.
+//
+// browser.js carves iOS out ("actx breaks background album playback on
+// ios") through IPHONE, which is util.js:39 and does not exist yet when
+// this runs -- so the test is spelled out here rather than dropped.
+window.ACtx = !/iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+	(window.AudioContext || window.webkitAudioContext);
+
+// NULL, or a real AudioContext -- never a stub. up2k.js:735 guards on
+// `uc.upsfx && actx && actx.state != 'suspended'` and then sfx_nice()
+// calls actx.createOscillator() (:753), so a falsy actx is safe and a fake
+// object is a TypeError on the first completed upload with the sound on.
+window.actx = null;
+
+window.start_actx = function () {
+	if (!window.actx) {
+		if (!window.ACtx)
+			return;
+
+		window.actx = new window.ACtx();
+	}
+	try {
+		if (window.actx.state == "suspended")
+			window.actx.resume();
+	}
+	catch (ex) { }
+};
+
+// REPLACED, not proxied. browser.js:8042-8158 is 117 lines of classic-UI
+// page chrome: it dereferences #ops a[data-dest="up2k"] (:8058), #acc_info
+// (:8091), #u2rand's parent (:8143) and #new_mdi (:8152) with no guard,
+// writes the read/write/nread/nwrite classes onto <html>, sets a `perms`
+// attribute on <body> and calls goto() itself. nu owns all of that
+// already, and none of it the way browser.js spells it.
+//
+// it must exist all the same: up2k.js:3494 calls it unguarded, at top
+// level. what nu's does is the two lines the uploader actually depends on
+// -- browser.js:8145 and :8146-8147 -- and without the second, fsearch
+// never initializes.
+//
+// both writes are window-qualified because this file is strict: `u2ts = x`
+// would throw if CGV1's spray had not already created the global, and
+// `up2k` is up2k.js's own (up2k.js:30), null until its hasher resolves.
+window.apply_perms = function (res) {
+	window.u2ts = res.u2ts;
+	if (window.up2k)
+		window.up2k.set_fsearch();
+};
 
 // -- boot --------------------------------------------------------------
 
@@ -4178,9 +5176,37 @@ function set_dots(v) {
 	ebi("nu_cfgh").textContent = t("nu_m_cfg");
 	ebi("nu_cfgx").setAttribute("aria-label", t("nu_back"));
 
+	// the upload sheet's title is the action bar's own key, for the same
+	// reason the settings screen's is the router row's.
+	ebi("nu_uplh").textContent = t("nu_a_up");
+
 	var upa = ebi("nu_up");
 	if (!upa.classList.contains("nu_hidden"))
 		upa.href = keep(upa.getAttribute("href"));
+
+	// the status line is a door back into the upload sheet, and ONLY while
+	// a queue is running: render_stat puts role=button on #nu_count when
+	// ST.upl is non-null and takes it off when the queue drains, so the
+	// guard below and the thing a screen reader is told are the same fact,
+	// stated once. bound at boot rather than in the upload branch -- a
+	// handler reassigned once a second is a handler nobody can reason
+	// about.
+	function stat_act(e) {
+		if (!ebi("nu_count").getAttribute("role"))
+			return;
+
+		if (e)
+			e.preventDefault();
+
+		sheet("nu_upl", true);
+	}
+
+	ebi("nu_count").onclick = stat_act;
+
+	ebi("nu_count").onkeydown = function (e) {
+		if (e.key == "Enter" || e.key == " ")
+			stat_act(e);
+	};
 
 	ebi("nu_chips").onclick = function (e) {
 		var b = e.target.closest(".nu_chip");
@@ -4549,8 +5575,8 @@ function set_dots(v) {
 	fetch_ls(location.pathname, function (err, ls) {
 		if (err)
 			return (ebi("nu_list").innerHTML =
-				'<p class="nu_empty">' + esc(t("nu_eload")) + ': ' + esc(err.message) +
-				' &mdash; <a href="?nu0">' + esc(t("nu_eold")) + '</a></p>');
+				'<p class="nu_empty">' + nu_esc(t("nu_eload")) + ': ' + nu_esc(err.message) +
+				' &mdash; <a href="?nu0">' + nu_esc(t("nu_eold")) + '</a></p>');
 
 		take(ls);
 	});

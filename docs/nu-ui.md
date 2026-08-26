@@ -38,7 +38,7 @@ in httpcli.py) and is listed in `ALL_COOKIES`, so "reset settings" clears it.
 | file | what |
 |---|---|
 | `web/nu.html` | jinja template; registered in the `jn` list in `httpsrv.py` |
-| `web/nu.js` | the whole client: strings, preferences, the two renderers, the tree, selection, the gestures, the viewer, search |
+| `web/nu.js` | the whole client: strings, preferences, the two renderers, the tree, selection, the gestures, the viewer, search, and the up2k panel plus the `browser.js` shim it runs on |
 | `web/nu.css` | standalone -- does NOT load `ui.css`/`browser.css` |
 
 `nu.html` also receives `cfg` (the volume's `js_ls`: `idx`, `dnsort`, `dsort`,
@@ -99,16 +99,14 @@ selection mode refuses to open (`?zip` posts basenames at the folder we are
 standing in, and a hit two levels down is not one), and the back row is
 gone (these rows are not a folder's contents).
 
-Still reasons to reach for `classic UI`: **upload** above all, and the
-surfaces the `⋯` router lists as declared-and-disabled -- new `.md` note,
-send a message to the log, unpost, recent uploads, shares, the control
-panel -- plus rename, move, the media player and the markdown
-viewer/editor. Spec 0001 D2's rule is that a thing `nu` has not built yet
-is a **visibly dead control that can explain itself**, never a hidden one:
-`Upload files` is rendered dead and routes to `?nu0`; `Move` says so when
-tapped. A thing the *server* refuses (`--no-del`, `--no-mv`) is not
-rendered at all, because a server's refusal is not a `nu` gap and must not
-look like one.
+Still reasons to reach for `classic UI`: the surfaces the `⋯` router lists
+as declared-and-disabled -- new `.md` note, send a message to the log,
+unpost, recent uploads, shares, the control panel -- plus rename, move, the
+media player and the markdown viewer/editor. Spec 0001 D2's rule is that a
+thing `nu` has not built yet is a **visibly dead control that can explain
+itself**, never a hidden one: `Move` says so when tapped. A thing the
+*server* refuses (`--no-del`, `--no-mv`) is not rendered at all, because a
+server's refusal is not a `nu` gap and must not look like one.
 
 ## widths
 
@@ -217,9 +215,7 @@ all three:
    explicitly, in the same document-level listener rather than a second
    one, and Escape is handled above the typing guard -- but nothing else
    has a shortcut, and whoever adds one inherits that listener.
-2. **drag & drop upload** -- and upload generally; see *what is NOT built
-   yet* below.
-3. **mtp tag columns** -- the columns are the four fixed fields the listing
+2. **mtp tag columns** -- the columns are the four fixed fields the listing
    already carries. Tag columns need the sort keys revisited too: `sorted()`
    still orders folders by `f.sz`, which is ~4096 wherever the recursive
    size was never filled.
@@ -248,7 +244,7 @@ would not fail, it would render someone else's translation.
 
 ### what each spec owned
 
-Both specs are landed; this is the record, not a plan.
+All three specs are landed; this is the record, not a plan.
 
 **0002** established the contract this file describes: the three width
 bands over one markup, `CAP` as the capability layer, the tree dock and its
@@ -265,6 +261,11 @@ both UIs have) and the settings screen; grid view and thumbnails; the tree
 mounted once and shared by the dock and a new bottom sheet; selection mode;
 swipe actions and pull-to-refresh, both gated on `CAP.on("coarse")`; the
 image viewer; and recursive search.
+
+**0003** put `up2k` behind the `Upload files` button -- the generated
+panel, the contract self-check that gates the mount, the `browser.js` shim
+`up2k.js` reaches through, and the queue's progress on the status line.
+See *upload* below.
 
 ## data contract
 
@@ -286,18 +287,82 @@ one extra key, `vp` -- its absolute, decoded vpath, which `vp_of()` prefers
 because a hit is not in the folder we are standing in and `?delete` wants
 the real path.
 
+## upload
+
+Spec 0003. `Upload files` opens the fifth tenant of `sheet()`, and what is
+inside it is the classic UI's own `up2k.js`, driven through markup `nu.js`
+generates. `up2k.js` is not a library -- it dereferences ~47 specific
+element ids (`u2conf`, `u2cards`, `u2etaw`, `nthread`, ...), most of them
+unguarded -- so `nu` renders that markup rather than reimplementing chunked
+hashing, resume and dedup (protocol in `docs/up2k.txt`). The `<section>` in
+`nu.html` is only the container; `mount_upl()` fills it on the sheet's
+**first open**, checks the whole id contract before a byte of `up2k.js` is
+fetched, and then injects `ui.css`, `util.js` and `up2k.js` in that order.
+A contract miss names the missing id on screen and aborts the mount -- an
+upstream change to `browser.js` is meant to be loud here, and it is the
+reopen condition for building a native uploader instead.
+
+Every switch `up2k` owns is **rendered**, whatever the panel shows:
+`bcfg_get` returns `defval` without reading storage when the element is
+absent, so an omitted switch does not merely fail to draw, it silently
+discards the value the user saved, on every load. Hiding is therefore a CSS
+act and never a markup omission -- one disclosure button toggles a class on
+`#nu_uplb`, and `nu.css` orders `#u2conf` and the twelve switches to land
+directly under it. For the same reason `#ops`, `#repl` and `#ico1` are
+`display:none` rather than dropped, and `#drops` / `#up_dz` / `#srch_dz`
+are appended to `<body>` rather than into the sheet: a full-window drop
+target nested inside a closed dialog never sees a drag. `#ops` carries a
+`font-size` too, and that one is not decoration -- `up2k`'s `onresize`
+measures the window in units of it, and past its threshold it *moves* the
+upload button into a cell of the table the disclosure hides.
+
+Progress rides the **existing status line**, not a new footer strip: while
+a queue is running `#nu_count` reads `<done>/<total> · <pct>%` and carries
+`role="button"`, and activating it reopens the sheet on the running queue.
+The numbers are `up2k`'s own -- the `#u2cards` counters, and the percent at
+the head of the string its `Donut` hands to `wintitle()` once a second --
+and the attributes come off again when the queue drains.
+
+### what upload brings onto the page
+
+From the first open of the sheet on, `util.js` is on the page, and three of
+its **import-time** statements reach `nu`'s own chrome. All three are
+decisions, not accidents:
+
+- `window.onerror = vis_exh` -- the classic UI's crash overlay. `nu` has no
+  `window.onerror` of its own, so a crash in `nu` was a frozen UI and a
+  silent console. It builds its own `#exbox` and its own inline `<style>`,
+  so it needs no markup and no `ui.css`. **Kept.**
+- `favico` -- 100 ms after import it binds `icot`/`icof`/`icob` through a
+  *guarded* helper (so those three ids are not contract) and then follows
+  upload progress. `r.upd()` returns early while `icot` is empty, which it
+  is for everyone who has never visited the classic UI -- so the favicon
+  changes for that user alone, and changes into something `nu` wants
+  anyway. **Kept.**
+- `bchrome()` -- writes `--bg-u3`, or the literal `#333` when that resolves
+  empty, into `<meta name=theme-color>`. Neither `nu.css` nor `ui.css`
+  declares `--bg-u3` and `nu` sets no class on `<html>` (it themes through
+  `data-thm`), so the fallback always wins and the volume's theme-color
+  would go grey on the first open. **Defended against** -- `nu` writes its
+  own back afterwards.
+
+`util.js` also brings `esc`, `setck` and `humansize`, and from that first
+open they own those three names for the rest of the session. They are not
+equivalences -- `util.js`'s `esc` throws on `null`/a number where `nu`'s
+coerces, and its `setck` uses `xhr.onload`, which never fires on a network
+error -- which is why `nu`'s three are named `nu_esc`, `nu_setck` and
+`nu_hsz`.
+
+### what upload unlocks and does not take
+
+`unpost` and `recent uploads` are the two `⋯` router rows that only mean
+anything once this UI can upload. Both are still declared-and-disabled: a
+follow-up, deliberately not part of 0003.
+
 ## what is NOT built yet
 
-Most importantly **upload**, which is deferred to a spec of its own. The
-classic `up2k.js` is not a library -- it drives ~47 specific element ids
-(`u2conf`, `u2cards`, `u2etaw`, `nthread`, ...) and reimplementing it means
-reimplementing chunked hashing, resume, and dedup (protocol in
-`docs/up2k.txt`). Until that is done, uploading is what the `classic UI`
-link is for, and `Upload files` is a rendered-dead button that routes there
-rather than a hidden one.
-
-Also missing, and all of them **parity-only** -- surfaces the classic UI
-has that the mobile design never drew:
+All of it **parity-only** -- surfaces the classic UI has that the mobile
+design never drew:
 
 - **the media player** (audio and video) and the **markdown
   viewer/editor** -- the `New .md note` router row is declared and

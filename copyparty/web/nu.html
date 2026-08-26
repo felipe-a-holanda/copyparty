@@ -174,6 +174,30 @@
 		<div id="nu_cfgb"></div>
 	</section>
 
+	<!-- the upload panel (spec 0003 D2), and the fifth tenant of sheet().
+	     it takes the same .nu_grip + .nu_shead shell as the sort and tree
+	     sheets, and none of their body: up2k.js drives ~47 specific element
+	     ids, and nu.js generates every one of them into #nu_uplb on the
+	     sheet's first open. a second copy of browser.js's markup written
+	     here would drift from it in silence.
+
+	     the <section> itself is static markup all the same, and that is not
+	     an inconsistency: sheet() does ebi(id) and returns without a word
+	     when the node is missing, so a renderer-only tenant would open
+	     nothing and report nothing.
+
+	     the header carries english and boot overwrites it with t(), like
+	     every other string this file holds -- and it is the action bar's own
+	     key, so the door and the room say the same word, in every language,
+	     from one string. -->
+	<section id="nu_upl" hidden aria-modal="true" role="dialog" aria-labelledby="nu_uplh">
+		<div class="nu_grip"></div>
+		<div class="nu_shead">
+			<h2 id="nu_uplh">Upload files</h2>
+		</div>
+		<div id="nu_uplb"></div>
+	</section>
+
 	<!-- the image viewer (README:224-233), and the one surface here that is
 	     NOT a tenant of sheet(). sheet() owns one veil and the rule that at
 	     most one of its tenants is open; the viewer's contract is the
@@ -257,13 +281,26 @@
 		var Ls = {},
 			SR = "{{ r }}",
 			TS = "{{ ts }}",
+			// util.js:446-447 stamps this into every import_js call; without
+			// it the dep import of up2k.js is blocked by the default
+			// --csp-ui (script-src 'unsafe-eval' 'nonce-{{ js_nonce }}').
+			JS_NONCE = "{{ js_nonce }}",
 			// the admin's ui_* switches and the server's capabilities.
 			// raw, never |tojson: vn.js_htm is already a json *string*
 			// (json_hesc(json.dumps(...)) in authsrv.py), which is why
 			// browser.html, md.html and mde.html all interpolate cgv1
 			// bare too. encoding it twice hands nu a String, and every
 			// capability gate then reads undefined.
-			srvcfg = {{ cgv1 }},
+			//
+			// CGV1 is util.js:16-17's spray target (nosubtle, frand, u2ts,
+			// u2sz, u2ow, u2j, lifetime, turbolvl, u2sort, have_up2k_idx
+			// as bare globals) -- one parse, two names, one object. CGV
+			// is deliberately NOT declared: its three keys for this
+			// template (ls0, acct, perms) are already bare globals below,
+			// and util.js:19-20's spray would replace ls0 with a second
+			// parse of the whole listing.
+			CGV1 = {{ cgv1 }},
+			srvcfg = CGV1,
 			lang = "{{ lang }}",
 			dtheme = "{{ dtheme }}",
 			have_tags_idx = {{ have_tags_idx }},

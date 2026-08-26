@@ -204,6 +204,37 @@ a {
 	text-decoration: none;
 }
 
+/* ---- what ui.css reaches for ----
+
+   the upload sheet's first open injects ui.css, and injects it BEFORE this
+   file (nu.js:inject_ui_css), so every same-specificity collision between
+   the two is decided here, on document order. two of ui.css's rules have no
+   tie to lose, because nu.css never stated them at all -- so it states them
+   now, at matching specificity, and wins:
+
+     ui.css:385-387  input, button { font-family: var(--font-main) }
+     ui.css:389-394  input[type="text"]:focus, input:not([type]):focus,
+                     textarea:focus { box-shadow: 0 .1em .3em #fc0 ... }
+
+   both are stated out here in nu's own chrome rather than inside #nu_upl:
+   what the upload panel itself looks like is not this block's call. */
+input,
+button,
+textarea,
+select {
+	font-family: var(--font);
+}
+
+/* nu draws focus as an outline on :focus-visible -- #nu_q, #nu_qx,
+   .nu_chip and the rest, below -- and never as a shadow. so nu's own
+   box-shadow on a focused field is none, and saying it out loud is what
+   keeps ui.css's yellow glow off the search box. */
+input[type="text"]:focus,
+input:not([type]):focus,
+textarea:focus {
+	box-shadow: none;
+}
+
 /* ---- header ---- */
 
 #nu_top {
@@ -1080,6 +1111,7 @@ a {
 	#nu_menu,
 	#nu_tsh,
 	#nu_cfg,
+	#nu_upl,
 	#nu_vwr,
 	.nu_tgl,
 	.nu_tgl .nu_knob,
@@ -1526,6 +1558,16 @@ button.nu_crow:focus-visible {
 	opacity: 1;
 }
 
+/* display:flex above outranks the UA's [hidden] { display: none }, so the
+   hidden state has to be re-stated -- and here it costs more than pixels:
+   the viewer is position:fixed inset:0 at z-index 12, so a closed viewer
+   that still lays out is a transparent full-window sheet over everything,
+   and every click on nu lands on it instead of on the row or button under
+   the cursor. same guard as #nu_qmsg and #nu_swipe carry. */
+#nu_vwr[hidden] {
+	display: none;
+}
+
 #nu_vwt {
 	flex: 0 0 auto;
 	display: flex;
@@ -1954,6 +1996,826 @@ button.nu_crow:focus-visible {
 	white-space: nowrap;
 }
 
+/* ---- the upload panel (spec 0003 D2) ----
+
+   a RE-DERIVATION of browser.css's upload surface, not a copy. the classic
+   sheet carries 58 top-level rules whose selector names one of these ids,
+   and every colour in them comes either from a literal or from a
+   `--u2-` or `--btn-` custom property that only ui.css declares -- and its dark
+   variants key on `html.a`, `html.b`, `html.c`, `html.e`, classes nu never
+   sets, because nu themes through --acc-h and the data-thm attribute
+   instead. lifting those rules would land a panel that is correct in the
+   classic UI's light theme and unreadable in nu's dark one.
+
+   so the GEOMETRY that up2k.js depends on is honoured (the 2px #u2form,
+   the .na queue, the .vis drop overlay, the .o eta block) and everything
+   else is stated fresh, out of the tokens at the top of this file. */
+
+/* the sheet. same shell language as the sort sheet -- the grip, the
+   .nu_shead, the 22px top corners, the rise off the bottom edge -- but its
+   own rule rather than a fourth id on that selector list, because this one
+   is a COLUMN: the head has to stay put while #nu_uplb scrolls, or a queue
+   of seven files scrolls the title off the top of the sheet. */
+#nu_upl {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 9;
+	display: flex;
+	flex-direction: column;
+	max-height: 86vh;
+	background: var(--surface);
+	border-radius: 22px 22px 0 0;
+	box-shadow: var(--sheet-sh);
+	padding: 10px 12px calc(18px + env(safe-area-inset-bottom));
+	transform: translateY(110%);
+	transition: transform .26s cubic-bezier(.2, .9, .3, 1);
+}
+
+/* `display: flex` above outranks the ua stylesheet's [hidden] rule, and a
+   sheet that lays out while closed is a fixed box sitting over the page --
+   which is exactly what the closed image viewer was doing until #nu_vwr
+   got the same guard. sheet() clears the attribute before it starts the
+   transition, so this costs the open path nothing. */
+#nu_upl[hidden] {
+	display: none;
+}
+
+#nu_upl.on {
+	transform: translateY(0);
+}
+
+/* the head is fixed furniture and the body is the scroller; a flex item
+   defaults to `0 1 auto` and would let the header shrink instead. */
+#nu_upl>.nu_grip,
+#nu_upl>.nu_shead {
+	flex: 0 0 auto;
+}
+
+/* the panel's own container, and the flex context the disclosure below
+   orders. min-height:0 is what actually lets it scroll -- a flex item's
+   automatic minimum size is its content, so without it the body grows the
+   sheet past max-height instead of overflowing. */
+#nu_uplb {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	padding: 0 6px;
+}
+
+/* #op_up2k keeps its `act` class -- up2k.js:3491 reads it and nothing else
+   on the page reaches goto_up2k() -- and gets NO BOX: display:contents
+   hands its children straight to #nu_uplb's flex context, which is what
+   lets #u2conf be ordered down beside the switches it belongs with
+   instead of sitting above the upload button where the disclosure that
+   reveals it cannot be seen. */
+#op_up2k {
+	display: contents;
+}
+
+/* ---- the classic UI's page chrome, generated and never shown ----
+
+   nu has no opview tab bar and no #repl; they exist because up2k.js
+   dereferences them unguarded (nu.js's mount_furn says where). #ico1 is
+   the favicon picker's, not the uploader's, and its three inputs are not
+   rendered at all -- so the heading standing over them goes too, below. */
+#ops,
+#repl,
+#ico1 {
+	display: none;
+}
+
+/* and #ops earns a second rule, because it is not only hidden: it is
+   up2k's MEASURING STICK. onresize (up2k.js:3062-3086) divides
+   window.innerWidth by parseInt(getComputedStyle(ebi('ops'))['font-size'])
+   and, past 57 of those units, MOVES #u2btn into the #u2conf table's
+   #u2btn_cw cell -- past 86, #u2etaw and #u2cards into #u2c3w as well. in
+   the classic UI those cells are the wide layout. here they are inside the
+   table the disclosure hides, so on a 1440px window the upload button and
+   the entire progress block would be display:none behind a closed
+   disclosure, with no way back.
+
+   the fix is not a media query: nu's panel is a ~460px sheet at EVERY
+   window width, so up2k is simply being told the truth about the box it is
+   laying out into. a 100px stick puts its first threshold at 5700px. */
+#ops {
+	font-size: 100px;
+}
+
+/* ---- the drop overlay ----
+
+   the one part of this surface whose mechanism nu does not get to choose.
+   up2k.js toggles a `vis` CLASS on #drops (up2k.js:1115, :1128) and
+   hl/ok/err on the two .dropdesc boxes (:1050-1065), so the closed state
+   has to be a rule those classes can beat -- display, at plain
+   specificity, exactly as browser.css:2396-2409 does it. an inline style
+   or an !important here would hide the overlay for good, and the first
+   dragenter is caught on document.body (:1136) rather than by these
+   nodes, so hiding them costs nothing until there is something to catch.
+
+   no band query: 0002 deferred the desktop drag gesture to this spec, so
+   the overlay is the whole window at both bands. */
+#drops {
+	display: none;
+	position: fixed;
+	inset: 0;
+	z-index: 20;
+	background: var(--veil);
+	-webkit-backdrop-filter: blur(6px);
+	backdrop-filter: blur(6px);
+}
+
+#drops.vis {
+	display: block;
+}
+
+/* the window split in two: drop in the top half to upload, in the bottom
+   half to search. these are the hit areas, the .dropdesc boxes below are
+   what the eye sees. */
+.dropzone {
+	position: fixed;
+	left: 0;
+	right: 0;
+	height: 50%;
+	z-index: 2;
+}
+
+#up_dz {
+	top: 0;
+}
+
+#srch_dz {
+	bottom: 0;
+}
+
+.dropdesc {
+	position: fixed;
+	left: 6%;
+	width: 88%;
+	height: 30%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 3px dashed var(--chev);
+	border-radius: 22px;
+	background: var(--surface);
+	color: var(--fg);
+	font: 600 20px/1.4 var(--font);
+	text-align: center;
+	transition: border-color .12s, background .12s;
+}
+
+#up_zd {
+	top: 5%;
+}
+
+#srch_zd {
+	bottom: 5%;
+}
+
+.dropdesc>div {
+	flex: 1;
+	min-width: 0;
+	padding: 0 12px;
+}
+
+/* the mirrored 🚀/🔎 flourishes the classic UI floats off both edges of
+   the box at 2vw. nu draws one line and drops them -- the span below is
+   the line that actually says what dropping here will do, and it is the
+   one up2k.js writes the reason into when it cannot. */
+.dropdesc>div>div {
+	display: none;
+}
+
+.dropdesc span {
+	display: inline-block;
+	margin-top: 12px;
+	padding: 7px 14px;
+	border-radius: 999px;
+	background: var(--fill);
+	color: var(--fg3);
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.dropdesc.hl.ok {
+	border-style: solid;
+	border-color: var(--accent);
+	background: var(--sel);
+}
+
+.dropdesc.hl.ok span {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.dropdesc.err,
+.dropdesc.hl.err {
+	border-style: solid;
+	border-color: var(--danger);
+}
+
+.dropdesc.err span {
+	background: var(--danger);
+	color: #fff;
+}
+
+/* ---- the panel ---- */
+
+/* up2k submits through a real <form> holding real <input type=file>
+   elements, and clicks them itself. 2px and clipped, as browser.css:2503
+   has it -- display:none would take the inputs out of the form. */
+#u2form {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 2px;
+	height: 2px;
+	overflow: hidden;
+}
+
+/* two states, one node: up2k.js:867-872 writes className 'err' or 'msg'
+   and clears it again, so the empty node must have no box at all. */
+#u2err.err,
+#u2err.msg {
+	margin: 4px 0 0;
+	padding: 9px 12px;
+	border-radius: 12px;
+	background: var(--fill);
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+#u2err.err {
+	color: var(--danger);
+}
+
+#u2err.msg {
+	color: var(--fg3);
+}
+
+#u2btn_ct {
+	padding: 8px 0 0;
+}
+
+/* the drop/pick target, and the panel's one big affordance. the dashed
+   border is the classic UI's idea and worth keeping -- it is what says
+   "you may also drop here" without a word -- redrawn at nu's radius and
+   out of nu's tokens. */
+#u2btn {
+	display: block;
+	padding: 22px 16px;
+	border: 2px dashed var(--chev);
+	border-radius: 18px;
+	background: var(--fill);
+	color: var(--fg);
+	font: 600 16px/1.4 var(--font);
+	text-align: center;
+	cursor: pointer;
+	transition: border-color .15s, background .15s;
+}
+
+#u2btn:active {
+	border-color: var(--accent);
+	background: var(--sel);
+}
+
+#u2btn:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+/* search mode is the same button doing the other job (up2k.js:3335 puts
+   the class on #op_up2k), and it says so in colour as well as in words */
+#op_up2k.srch #u2btn {
+	border-style: solid;
+	border-color: var(--accent);
+}
+
+/* the mode marker up2k writes above the label */
+#u2bm {
+	display: block;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--fg2);
+}
+
+#u2bm sup {
+	font-weight: 700;
+}
+
+/* the "your browser cannot do this" fallback (up2k.js:820-830), which
+   swaps its own inline display when it has something to say */
+#u2notbtn {
+	display: none;
+	margin-top: 10px;
+	padding: 10px 12px;
+	border-radius: 12px;
+	background: var(--fill);
+	color: var(--fg3);
+	font-size: 13px;
+	text-align: center;
+}
+
+/* ---- the progress block ---- */
+
+/* three lines of numbers, so the mono stack -- the same reason the classic
+   UI reaches for 'scp'. #u2etas toggles its own `o` class to widen from
+   one line to three, and the two .o children are what appear. */
+#u2etaw {
+	margin: 14px 0 0;
+	font: 12px/1.7 var(--mono);
+	color: var(--fg3);
+}
+
+#u2etas {
+	display: block;
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+#u2etas .o {
+	display: none;
+}
+
+#u2etas.o div.o {
+	display: block;
+}
+
+#u2etas.o span.o {
+	display: inline;
+}
+
+/* the five counters. up2k.js keeps `act` on whichever one it is talking
+   about, and card 5's status line reads `done` and `q` straight off these
+   spans -- so this row is data as well as chrome. */
+#u2cards {
+	display: flex;
+	gap: 6px;
+	margin: 10px 0 0;
+	padding: 0;
+	white-space: nowrap;
+}
+
+#u2cards a {
+	flex: 1;
+	min-width: 0;
+	padding: 7px 4px;
+	border-radius: 12px;
+	background: var(--fill);
+	color: var(--fg2);
+	font-size: 11px;
+	text-align: center;
+}
+
+#u2cards a.act {
+	background: var(--sel);
+	color: var(--accent);
+	font-weight: 600;
+	box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+#u2cards span {
+	display: block;
+	font: 600 14px var(--mono);
+	color: var(--fg);
+}
+
+#u2cards a.act span {
+	color: var(--accent);
+}
+
+/* ---- the queue ---- */
+
+#u2tabw {
+	/* up2k.js:1659-1662 writes an INLINE min-height onto this element,
+	   grown out of #u2tab's own offsetHeight, so a busy queue can never
+	   shrink under itself. inline beats a stylesheet on everything except
+	   !important, and min-height beats max-height on everything at all --
+	   so seven queued files push the upload button clean off the sheet
+	   with the cap below sitting unused. up2k reads that value back off
+	   the inline style and not off the computed one (:1656), so its own
+	   bookkeeping is untouched. this is the only !important in this file,
+	   and this is what it is for. */
+	min-height: 0 !important;
+	max-height: 34vh;
+	overflow-y: auto;
+	margin: 12px 0 0;
+	border-radius: 14px;
+	background: var(--bg);
+}
+
+/* `na` is up2k's "nothing queued" -- the header alone is not a table */
+#u2tabw.na>table {
+	display: none;
+}
+
+#u2tab {
+	width: 100%;
+	table-layout: fixed;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+
+#u2tab thead td {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--bg);
+	color: var(--fg2);
+	font-weight: 600;
+}
+
+#u2tab td {
+	padding: 7px 10px;
+	border-bottom: 1px solid var(--line-soft);
+	word-wrap: break-word;
+}
+
+#u2tab tr:last-child td {
+	border-bottom: 0;
+}
+
+#u2tab td:nth-child(2) {
+	width: 6em;
+	white-space: nowrap;
+}
+
+#u2tab td:nth-child(3) {
+	width: 42%;
+}
+
+/* the per-row state badges (up2k.js writes span.inf / .ok / .err) */
+#u2tab span.inf,
+#u2tab span.ok,
+#u2tab span.err {
+	display: inline-block;
+	padding: 2px 7px;
+	border-radius: 8px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+#u2tab span.inf {
+	background: var(--fill);
+	color: var(--fg3);
+}
+
+#u2tab span.ok {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+#u2tab span.err {
+	background: var(--danger);
+	color: #fff;
+}
+
+/* a byte count is a column of digits, wherever it lands */
+.prog {
+	font-family: var(--mono);
+}
+
+/* the "and N more" tail up2k folds long queues into */
+#u2mu {
+	padding: 0 10px;
+	font-size: 12px;
+	color: var(--fg2);
+}
+
+#u2mu div {
+	height: 1.2em;
+	overflow: hidden;
+}
+
+/* ---- what the panel says when it is done ---- */
+
+#u2foot,
+#u2life {
+	margin: 12px 0 0;
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--fg3);
+	text-align: center;
+}
+
+#u2foot .warn {
+	display: block;
+	margin-top: 8px;
+	padding: 10px 12px;
+	border-radius: 12px;
+	background: var(--fill);
+	color: var(--fg);
+}
+
+#u2foot span {
+	color: var(--fg2);
+}
+
+#u2life div {
+	display: inline-block;
+	margin: 0 10px;
+	white-space: nowrap;
+}
+
+#u2life small {
+	color: var(--fg2);
+}
+
+#lifew {
+	border-bottom: 1px dotted var(--fg2);
+}
+
+/* browser.css keeps this one display:none and up2k.js:1902 reveals it by
+   writing '' or 'block' inline -- so '' has to mean hidden here too */
+#u2flagblock {
+	display: none;
+	margin: 12px 0 0;
+	padding: 10px 12px;
+	border: 2px dashed var(--chev);
+	border-radius: 14px;
+	font-size: 13px;
+	text-align: center;
+}
+
+/* the text inputs up2k renders into #u2life, drawn like nu's own fields */
+#u2life input,
+#u2conf .txtbox,
+#nu_uplsw input[type="text"] {
+	min-height: 36px;
+	padding: 6px 8px;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--fg);
+	font: 14px var(--mono);
+	text-align: center;
+}
+
+#u2life input {
+	width: 4.5em;
+	text-align: right;
+}
+
+#u2life input:focus-visible,
+#u2conf .txtbox:focus-visible,
+#nu_uplsw input[type="text"]:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
+}
+
+#u2conf .txtbox.err {
+	border-color: var(--danger);
+	color: var(--danger);
+}
+
+/* ---- the disclosure ----
+
+   every switch up2k owns is RENDERED, always, whatever this panel shows:
+   bcfg_get returns defval without touching storage when the node is absent
+   (util.js:1314-1317), so an omitted switch does not merely fail to draw,
+   it throws away the value the user saved, silently, on every load. that
+   is why hiding them is a CSS act and never a markup omission -- spec 0003
+   D3 part 3 -- and why this is `display: none` on nodes that are all still
+   there for ebi() to find.
+
+   one button reveals both halves at once, and the order above is what puts
+   them next to it: #u2conf is written at the TOP of the panel because
+   up2k's wide layout needs its cells there, and it is drawn at the bottom
+   because that is where the button that asks for it lives. */
+#u2conf,
+#nu_uplsw {
+	display: none;
+}
+
+.nu_u2more {
+	order: 1;
+	margin: 14px 0 0;
+	padding: 10px 12px;
+	border: 0;
+	border-radius: 12px;
+	background: none;
+	color: var(--accent);
+	font: 500 13px var(--font);
+	text-align: left;
+	cursor: pointer;
+}
+
+.nu_u2more:active {
+	background: var(--hov);
+}
+
+.nu_u2more:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+#nu_uplb.nu_more #u2conf {
+	display: block;
+}
+
+#nu_uplb.nu_more #nu_uplsw {
+	display: block;
+}
+
+/* ---- the six controls of #u2conf ---- */
+
+#u2conf {
+	order: 2;
+	width: 100%;
+	margin: 4px 0 0;
+	border-collapse: collapse;
+}
+
+/* the six controls are a TABLE because two of its cells are where up2k's
+   wide layout parks the upload button and the progress block -- so the
+   table is kept and its columns are not. six table columns in a 336px
+   sheet is six columns of nothing: the rows are unwrapped into wrapping
+   rows of controls instead, which is also what puts the thread stepper on
+   one line with its own label above it. */
+#u2conf tbody {
+	display: block;
+}
+
+#u2conf tr {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+#u2conf td {
+	display: block;
+	padding: 0;
+	text-align: center;
+}
+
+/* the <br> that separated the classic table's two lines inside one cell */
+#u2conf br {
+	display: none;
+}
+
+#u2conf .c {
+	font-size: 11px;
+	line-height: 1.35;
+	color: var(--fg2);
+}
+
+/* the two cells up2k's wide layout would move #u2btn and the progress
+   block into. the #ops stick above keeps that from happening at any real
+   window width -- this is the belt to that brace, and it lets go the
+   moment either cell actually holds something. */
+#u2btn_cw:empty,
+#u2c3w:empty {
+	display: none;
+}
+
+/* the checkbox is the state; the label is the button. NOT display:none --
+   a hidden input is not focusable and bcfg_bind toggles `checked` on it. */
+#u2conf input[type="checkbox"] {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+}
+
+#u2conf .c label {
+	display: block;
+	min-width: 46px;
+	padding: 12px 6px;
+	border-radius: 14px;
+	background: var(--fill);
+	color: var(--fg3);
+	font-size: 18px;
+	line-height: 1.2;
+	cursor: pointer;
+}
+
+#u2conf input[type="checkbox"]:checked+label {
+	background: var(--sel);
+	color: var(--accent);
+	box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+#u2conf input[type="checkbox"]:focus-visible+label {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+/* the thread-count stepper */
+#u2conf .txtbox {
+	width: 3.6em;
+}
+
+#u2conf a.b {
+	display: inline-block;
+	min-width: 36px;
+	padding: 8px 0;
+	border-radius: 10px;
+	background: var(--fill);
+	color: var(--fg3);
+	font-size: 16px;
+	line-height: 20px;
+	text-align: center;
+	vertical-align: middle;
+}
+
+#u2conf a.b:active {
+	background: var(--sel);
+	color: var(--accent);
+}
+
+/* ---- the twelve switches ---- */
+
+#nu_uplsw {
+	order: 3;
+	margin: 10px 0 0;
+	padding: 12px 0 0;
+	border-top: 1px solid var(--line-soft);
+}
+
+#nu_uplsw h3 {
+	margin: 0 0 10px;
+	padding: 0 2px;
+	font: 700 11px var(--font);
+	letter-spacing: .12em;
+	text-transform: uppercase;
+	color: var(--fg2);
+}
+
+/* the second heading names the favicon's three inputs, and nu renders none
+   of them -- they are the favicon's, not the uploader's (see nu.js's
+   upl_sw_htm). #ico1 above is already gone; a heading standing over
+   nothing goes with it. */
+#nu_uplsw>h3:last-child {
+	display: none;
+}
+
+#nu_uplsw>div {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+#nu_uplsw .tgl.btn {
+	padding: 10px 14px;
+	border-radius: 14px;
+	background: var(--fill);
+	color: var(--fg3);
+	font: 500 13px/20px var(--font);
+	white-space: pre;
+	cursor: pointer;
+}
+
+#nu_uplsw .tgl.btn.on {
+	background: var(--sel);
+	color: var(--accent);
+	font-weight: 600;
+	box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+#nu_uplsw .tgl.btn:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+/* u2tdate only means anything while u2turbo is on, and browser.css says so
+   with opacity rather than with display -- keep that, it stays clickable */
+#u2tdate {
+	opacity: .35;
+}
+
+#u2turbo.on+#u2tdate {
+	opacity: 1;
+}
+
+/* the loading word, while up2k.js is on the wire */
+#nu_uplw {
+	padding: 32px 0;
+}
+
+/* the status line's upload branch is activatable (card 5 gives #nu_count
+   role=button while a queue is running, and takes it off again on the way
+   out), so it has to LOOK activatable for exactly that long. */
+#nu_count[role="button"] {
+	color: var(--accent);
+	font-weight: 600;
+	cursor: pointer;
+}
+
+#nu_count[role="button"]:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 3px;
+	border-radius: 6px;
+}
+
 /* the middle band, 44em-64em: tablets and half-screen windows. the phone
    design (no query at all) owns everything below; the wide layout owns
    everything from 64em up, so this rule needs an upper edge -- an unbounded
@@ -1981,6 +2843,24 @@ button.nu_crow:focus-visible {
 	#nu_sheet.on,
 	#nu_menu.on,
 	#nu_tsh.on {
+		transform: translate(-50%, 0);
+	}
+
+	/* the upload panel is a card here too, and a taller one: it is the
+	   only tenant of sheet() whose body can grow without bound. it takes
+	   the same centering by hand rather than joining the list above,
+	   because its `bottom` is the one property the three do not share --
+	   a queue at max-height needs the room. */
+	#nu_upl {
+		left: 50%;
+		transform: translate(-50%, 110%);
+		width: 520px;
+		border-radius: 22px;
+		bottom: 24px;
+		max-height: calc(100vh - 48px);
+	}
+
+	#nu_upl.on {
 		transform: translate(-50%, 0);
 	}
 }
@@ -2174,6 +3054,22 @@ button.nu_crow:focus-visible {
 
 	#nu_sheet.on,
 	#nu_menu.on {
+		transform: translate(-50%, 0);
+	}
+
+	/* and the same card up here, wider: the queue table has three columns
+	   and a 460px sheet on a 1440px window is a phone layout wearing a
+	   desktop -- spec 0002 D5's rule, applied to the fifth tenant. */
+	#nu_upl {
+		left: 50%;
+		transform: translate(-50%, 110%);
+		width: min(640px, calc(100vw - 80px));
+		border-radius: 22px;
+		bottom: 40px;
+		max-height: calc(100vh - 80px);
+	}
+
+	#nu_upl.on {
 		transform: translate(-50%, 0);
 	}
 
