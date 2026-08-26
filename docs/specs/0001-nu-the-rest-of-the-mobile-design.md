@@ -34,7 +34,8 @@ select-all/inverter, o swipe na linha, o pull-to-refresh, o visualizador de imag
 verde (31) e zero `.py` no diff; falta a walk viva em 390×844 e 1440×900. Duas coisas
 que esta spec listava chegaram antes com 0002 e não são mais devidas aqui: o
 **widget** `?tree=` (0002 §D3 — só o wrapper de sheet ficou) e o binding do template
-`cgv1`. Upload segue diferido pra spec própria. O plano
+`cgv1`. Upload ficou de fora daqui e já foi fechado pela
+[0003](0003-nu-upload.md), pousada em `c2b64200..ea1e4cc2`. O plano
 (`docs/plans/0001-nu-the-rest-of-the-mobile-design.md`) espelha este número.
 
 ---
