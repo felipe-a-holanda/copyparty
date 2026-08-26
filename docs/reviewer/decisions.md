@@ -6,7 +6,7 @@
 | PR | SHA | Data | Reviewer | Anchor | Arquivo:linha | Sev | Veredito | Overlap | Rota |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | `de0878a5` | 2026-08-25 | coderabbit | `gh:3848537956` | `docs/specs/0001-nu-the-rest-of-the-mobile-design.md:26` | baixa | real | exclusivo | fix |
-| 1 | `de0878a5` | 2026-08-25 | coderabbit | `cr:11f6eaf1…` | `copyparty/web/nu.css:139` | trivial | nitpick | exclusivo | drop |
+| 1 | `de0878a5` | 2026-08-25 | coderabbit | `cr:11f6eaf1ded5f2e3a43cb1c1` | `copyparty/web/nu.css:139` | trivial | nitpick | exclusivo | drop |
 
 ## PR 1 — `dev → main` (promoção do `nu`)
 
@@ -20,7 +20,7 @@ de manutenibilidade.
   e a coluna de evidência já dizem `pousado`. Confirmado no head promovido (`de0878a5`),
   nos dois arquivos: `0001` linha 25 e `0002` linha 26. É deriva de prosa, sem efeito de
   runtime, mas é real e o conserto são duas linhas.
-- **`cr:11f6eaf1…` — nitpick, trivial.** As linhas 139-181 do `nu.css` repetem valor por
+- **`cr:11f6eaf1ded5f2e3a43cb1c1` — nitpick, trivial.** As linhas 139-181 do `nu.css` repetem valor por
   valor as 93-136: a mesma paleta escura precisa ser alcançável por dois gatilhos
   distintos (a preferência do SO e o toggle manual), e custom properties não permitem
   compartilhar uma declaração entre os dois seletores sem uma terceira indireção. A
