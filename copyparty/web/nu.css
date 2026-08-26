@@ -2434,7 +2434,7 @@ button.nu_crow:focus-visible {
 #u2tab td {
 	padding: 7px 10px;
 	border-bottom: 1px solid var(--line-soft);
-	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 #u2tab tr:last-child td {
