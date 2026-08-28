@@ -957,6 +957,20 @@ x.parentNode.insertBefore(mknod('div', null,
 	'<input type="checkbox" id="uput" name="uput"><label for="uput">' + L.u_uput + '</label>'), x);
 
 
+// the classic UI's door into the new one. it PINS the cookie rather than
+// just following its own `?nu` href: `?nu` is one request, and this UI
+// strips the query from the address bar, so a bare ?nu is undone by the
+// next tap -- and under --nu it would not even survive that, since the
+// visitor is only here because `ui=cl` is pinned. the new UI's `The classic
+// UI` row is the matching door back. see docs/nu-ui.md
+x = ebi('nusw');
+if (x)
+	x.onclick = function (e) {
+		ev(e);
+		setck('ui=nu', function () { location.href = location.pathname; });
+	};
+
+
 (function () {
 	var o = mknod('div');
 	o.innerHTML = (

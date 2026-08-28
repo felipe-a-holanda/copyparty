@@ -43,6 +43,35 @@
 			     follows that same attribute in nu.css, so the affordance
 			     and the behaviour cannot drift apart. -->
 			<h1 id="nu_here"><button id="nu_hereb" type="button" aria-haspopup="dialog"><span id="nu_heren">{{ vpnodes[-1][1] }}</span><span id="nu_hered" aria-hidden="true">&#9662;</span></button></h1>
+
+			<!-- the build stamp. it answers one question -- "is what I am
+			     looking at the build I just pushed?" -- which a fork whose
+			     main branch deploys itself without a human
+			     (contrib/autodeploy) has to ask several times a day.
+
+			     it sits in the nav row rather than in the status line
+			     because #nu_stat is where the wide band renders the action
+			     bar into (#nu_tools), inside a track that is 14em at its
+			     narrowest; this row, by contrast, is the one place that has
+			     room at BOTH bands -- the phone gives it a full-bleed line
+			     and >= 64em leaves the space to the right of a
+			     left-aligned title empty.
+
+			     it is markup and not a rendered node, and it carries no
+			     t() overwrite: every character in it is a version number,
+			     a sha and an ISO date, and none of those is translated.
+			     nu.js never touches it, so it is also the one header node
+			     that cannot be destroyed under a finger.
+
+			     the two halves are httpcli.py's UI_VER (short, visible) and
+			     the tooltip's full "copyparty <ver> · commit <date> ·
+			     booted <ts>". a checkout that was never built by
+			     make-sfx.sh has no sha to show and says "v1.20.20"; the
+			     boot time in the tooltip is what separates two restarts of
+			     such a build. -->
+			{%- if s_ver %}
+			<span id="nu_ver" title="{{ s_vert }}">{{ s_ver }}</span>
+			{%- endif %}
 		</div>
 
 		<div id="nu_srch">

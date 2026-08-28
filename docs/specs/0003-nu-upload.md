@@ -22,7 +22,13 @@ par: "[[plans/0003-nu-upload|plan]]"
 > target before the uploader exists would produce a target that swallows files"
 > (`0002:467-469`). This spec answers the question and builds the answer.
 
-- **Status:** planejado — spec + plano ([[plans/0003-nu-upload|0003]]); próximo passo é `/exec`.
+- **Status:** pousado — spec + plano ([[plans/0003-nu-upload|0003]]) executados em
+  `c2b64200..ea1e4cc2`: o bootstrap `CGV1`/`JS_NONCE`, as 140 chaves de `Ls.eng`, o
+  painel up2k como quinto tenant de `sheet()`, o shim de `browser.js` com a
+  auto-checagem de contrato, a injeção ordenada `ui.css`→`util.js`→`up2k.js` e o
+  progresso na status line. Suíte verde (31), zero `.py` no diff e nenhum arquivo
+  novo em `web/`; walk viva feita (24 arquivos subiram, dedupe e `--lang por`
+  provados), falta só o gesto físico de arrastar pasta.
 - **Hardened:** 2026-08-25 against `3defa788`
 
 Today `nu` renders `Enviar arquivos` as a visibly dead button that routes to `?nu0`:
