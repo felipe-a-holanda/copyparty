@@ -7327,10 +7327,22 @@ class HttpCli(object):
             is_js = is_ls = False
         elif not is_ls and (
             "nu" in self.uparam
-            or (self.cookies.get("ui") == "nu" and "nu0" not in self.uparam)
+            or (
+                "nu0" not in self.uparam
+                and (
+                    self.cookies.get("ui") == "nu"
+                    or (vn.flags.get("nu") and self.cookies.get("ui") != "cl")
+                )
+            )
         ):
             # the new UI; ?nu forces it, ?nu0 escapes it, ?b is always the
             # panic-button back to the basic browser. see web/nu.js
+            #
+            # three sources, in this order: the request, the visitor's cookie,
+            # the volume's `nu` flag (--nu). the cookie has a value for each
+            # direction -- `nu` pins the new UI, `cl` pins the classic one --
+            # because with --nu on, merely CLEARING the cookie lands the
+            # visitor back in the new UI on the very next request
             tpl = "nu"
             is_js = True
 

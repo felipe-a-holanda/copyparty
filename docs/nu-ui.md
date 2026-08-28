@@ -13,25 +13,58 @@ Resolved in `httpcli.py`, in the `tpl = "browser"` block (~line 7296):
 | `?b` | `browser2` -- the basic no-JS browser. **always wins**; the panic button |
 | `?opds` | the OPDS feed, untouched |
 | `?ls` | JSON, untouched -- `nu` never hijacks the API or curl |
-| `?nu` | the new UI, this request only |
-| `?nu0` | the classic UI, even if the `ui=nu` cookie is set |
-| cookie `ui=nu` | the new UI by default |
+| `?nu` | the new UI, this request only. **beats `?nu0`** |
+| `?nu0` | the classic UI, whatever the cookie or the volume says |
+| cookie `ui=nu` | the new UI |
+| cookie `ui=cl` | the classic UI |
+| volflag `nu` / `--nu` | the new UI, for everyone who has not pinned a cookie |
 | otherwise | `browser` -- the classic UI, unchanged |
 
-The cookie is set through the pre-existing `?setck=ui=nu` endpoint (`setck()`
-in httpcli.py) and is listed in `ALL_COOKIES`, so "reset settings" clears it.
+Three sources, read in that order: the request, the visitor, the admin. The
+cookie is set through the pre-existing `?setck=ui=nu` endpoint (`setck()` in
+httpcli.py) and is listed in `ALL_COOKIES`, so "reset settings" clears it.
+
+**The cookie has a value for each direction, and that is what `--nu` costs.**
+While the server default is the classic UI, "I want the new one" is the only
+thing a visitor can mean, so an absent cookie and `ui=cl` are the same state
+and only `ui=nu` needs to exist. Under `--nu` the default is the new UI, so
+*clearing* the cookie is no longer leaving -- the very next request lands
+back in `nu`. `ui=cl` is what a visitor who wants the classic UI has to be
+able to say. Note `setck()` expires the cookie on the value `x` as well as
+on the empty string (`t = 0` at httpcli.py:5918), so `x` is not available as
+a name for a third state.
+
+`--nu` is a **volflag** (`nu`), not a server-wide switch, because the
+template is picked per request and the volume is already resolved there;
+`-v /pics::r:c,nu` gives one volume the new UI and leaves the rest alone.
+The client learns it as `nudef` in `cgv1` -- spelled out rather than passed
+through as `nu`, because `cgv1` becomes window-globals in `browser.html`
+and `window.nu` is too cheap a name to claim.
 
 ## the escape hatches (both directions)
 
+Both doors write the cookie rather than navigating to a query, and for the
+same reason: the classic UI strips the query from the address bar, so a bare
+`?nu` or `?nu0` does not survive a reload.
+
 - new -> classic: the `The classic UI` row in the `⋯` router (it used to be
   a link in the nav bar; it is a row in the `MENU` table now, so it is a
-  handler and not a node a re-render can destroy). When the cookie is set,
-  it **unpins** it, because the classic UI strips the query from the address
-  bar -- a bare `?nu0` would not survive a reload. The right-click menu's
-  `Open in the classic UI` is an accelerator for one row and navigates to
-  `?nu0` on its own.
+  handler and not a node a re-render can destroy). Under `--nu` it pins
+  `ui=cl`; otherwise it keeps its old behaviour -- unpin when the cookie is
+  set, `?nu0` when it is not. The right-click menu's `Open in the classic
+  UI` is an accelerator for one row and navigates to `?nu0` on its own,
+  which is one request and is meant to be.
 - classic -> new: `switch to new UI` (`#nusw`, `browser.html:40`), next to
-  the existing `switch to basic browser` in the upload pane.
+  the existing `switch to basic browser` in the upload pane. It pins
+  `ui=nu` (`browser.js`, beside the `#bbsw` fixup) instead of following its
+  own `?nu` href -- before that handler existed **nothing in either UI ever
+  set the cookie**, and the only way to pin the new UI was to type
+  `/?setck=ui=nu` by hand.
+
+`STICKY` in `nu.js` is the question "does the next request land here on its
+own?", and it is the answer to that question and not a cookie test:
+`ui=nu`, or `nudef` with no `ui=cl`. `keep()` appends `?nu` to every link
+exactly when it is false.
 
 ## files
 

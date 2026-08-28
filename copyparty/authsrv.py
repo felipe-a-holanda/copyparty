@@ -3335,6 +3335,10 @@ class AuthSrv(object):
                 "lifetime": vn.js_ls["lifetime"],
                 "u2sort": self.args.u2sort,
             }
+            # not spelled `nu`: cgv1 becomes window-globals in browser.html,
+            # and a global named `nu` is too cheap a name to claim there
+            if vf.get("nu"):
+                js_htm["nudef"] = 1
             zs = "ui_noacci ui_nocpla ui_noctxb ui_nolbar ui_nombar ui_nonav ui_notree ui_norepl ui_nosrvi"
             for zs in zs.split():
                 if vf.get(zs):

@@ -782,11 +782,20 @@ var ST = {
 
 // -- mode plumbing -----------------------------------------------------
 //
-// reachable two ways: the `ui=nu` cookie (sticky) or `?nu` (this request
-// only). without the cookie every link out of here must carry `?nu` along
-// or the next tap silently lands in the classic UI.
+// reachable three ways: the volume's `nu` flag (--nu, server-wide default),
+// the `ui=nu` cookie (sticky), or `?nu` (this request only). unless one of
+// the first two holds, every link out of here must carry `?nu` along or the
+// next tap silently lands in the classic UI.
+//
+// the cookie has a value for BOTH directions -- `nu` pins this UI, `cl` pins
+// the classic one -- because under --nu an empty cookie means "the new UI",
+// so leaving has to say so rather than merely forget.
 
-var STICKY = /(^|;\s*)ui=nu(;|$)/.test(document.cookie);
+var CK_UI = /(^|;\s*)ui=(nu|cl)(;|$)/.exec(document.cookie);
+CK_UI = CK_UI ? CK_UI[2] : "";
+
+// does the NEXT request land here on its own?
+var STICKY = CK_UI == "nu" || (!!srvcfg.nudef && CK_UI != "cl");
 
 function keep(href) {
 	if (STICKY || !href || /^[a-z]+:/i.test(href))
@@ -809,6 +818,12 @@ function nu_setck(kv, cb) {
 
 function unpin() {
 	nu_setck("ui=", function () { location.href = location.pathname; });
+}
+
+// the other direction: under --nu, clearing the cookie is not leaving, so
+// the classic UI has to be pinned by name
+function pin_classic() {
+	nu_setck("ui=cl", function () { location.href = location.pathname; });
 }
 
 // -- dotfiles ----------------------------------------------------------
@@ -3049,6 +3064,11 @@ var MENU = [
 				// its own and never read #nu_old, so it is unaffected -- it is
 				// an accelerator, and this row is the visible door it
 				// accelerates.
+				// under --nu the cookie is the only thing that can say
+				// "classic"; unpinning would land right back here
+				if (srvcfg.nudef)
+					return pin_classic();
+
 				if (STICKY)
 					return unpin();
 

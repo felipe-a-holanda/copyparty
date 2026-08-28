@@ -1965,6 +1965,7 @@ def add_og(ap):
 def add_ui(ap, retry: int):
     THEMES = 10
     ap2 = ap.add_argument_group("ui options")
+    ap2.add_argument("--nu", action="store_true", help="use the new UI by default; \033[33m?nu0\033[0m still opens the classic one, and \033[33m?b\033[0m the basic browser (volflag=nu)")
     ap2.add_argument("--grid", action="store_true", help="show grid/thumbnails by default (volflag=grid)")
     ap2.add_argument("--gsel", action="store_true", help="select files in grid by ctrl-click (volflag=gsel)")
     ap2.add_argument("--localtime", action="store_true", help="default to local timezone instead of UTC")
